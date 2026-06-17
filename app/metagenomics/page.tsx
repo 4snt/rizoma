@@ -13,27 +13,11 @@ import {
   type Dada2Params,
 } from '@/lib/api'
 import { ANALYSES_CATALOG, type AnalysisDefinition } from '@/lib/analyses-catalog'
+import { autoPair, dada2Defaults, csvDownload, type BatchPair } from '@/lib/metagenomics-utils'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 type TabKey = 'projeto' | 'dada2' | 'graficos'
-
-interface BatchPair { r1: File; r2: File; name: string }
-
-// Defaults DADA2 por marcador (espelham r-worker/analyses/dada2_silva.R)
-function dada2Defaults(marker: '16S' | 'ITS'): Required<Dada2Params> {
-  const is16S = marker === '16S'
-  return {
-    trunc_len_f: is16S ? 230 : 0,
-    trunc_len_r: is16S ? 180 : 0,
-    max_ee_f: 2,
-    max_ee_r: 2,
-    trunc_q: 2,
-    max_n: 0,
-    min_len: 50,
-    chimera_method: 'consensus',
-  }
-}
 
 const DADA2_FIELDS: { key: keyof Dada2Params; label: string; hint: string }[] = [
   { key: 'trunc_len_f', label: 'Truncagem Forward', hint: '0 = sem truncagem (ITS)' },
@@ -45,34 +29,7 @@ const DADA2_FIELDS: { key: keyof Dada2Params; label: string; hint: string }[] = 
   { key: 'min_len', label: 'minLen (ITS)', hint: 'comprimento mínimo' },
 ]
 
-function autoPair(files: File[]): { pairs: BatchPair[]; unmatched: string[] } {
-  const r1s = files.filter(f => /_R1[_.]/.test(f.name))
-  const r2s = files.filter(f => /_R2[_.]/.test(f.name))
-  const pairs: BatchPair[] = []
-  const unmatched: string[] = []
-  for (const r1 of r1s) {
-    const key = r1.name.replace(/_R1([_.])/, '_R2$1')
-    const r2 = r2s.find(f => f.name === key)
-    if (r2) pairs.push({ r1, r2, name: r1.name })
-    else unmatched.push(r1.name)
-  }
-  return { pairs, unmatched }
-}
-
 const LEVELS: TaxLevel[] = ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'species']
-
-function csvDownload(filename: string, headers: string[], rows: string[][]) {
-  const bom = '﻿'
-  const content = bom + [headers, ...rows]
-    .map(row => row.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))
-    .join('\n')
-  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url; a.download = filename
-  document.body.appendChild(a); a.click()
-  document.body.removeChild(a); URL.revokeObjectURL(url)
-}
 
 const inp: React.CSSProperties = {
   width: '100%',
