@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useMemo } from 'react'
+import Link from 'next/link'
 import useSWR from 'swr'
 import { useSession } from 'next-auth/react'
 import {
@@ -9,11 +10,40 @@ import {
   type Sample,
   type TaxLevel,
   type AsvFullRow,
+  type Dada2Params,
 } from '@/lib/api'
+import { ANALYSES_CATALOG, type AnalysisDefinition } from '@/lib/analyses-catalog'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+type TabKey = 'projeto' | 'dada2' | 'graficos'
+
 interface BatchPair { r1: File; r2: File; name: string }
+
+// Defaults DADA2 por marcador (espelham r-worker/analyses/dada2_silva.R)
+function dada2Defaults(marker: '16S' | 'ITS'): Required<Dada2Params> {
+  const is16S = marker === '16S'
+  return {
+    trunc_len_f: is16S ? 230 : 0,
+    trunc_len_r: is16S ? 180 : 0,
+    max_ee_f: 2,
+    max_ee_r: 2,
+    trunc_q: 2,
+    max_n: 0,
+    min_len: 50,
+    chimera_method: 'consensus',
+  }
+}
+
+const DADA2_FIELDS: { key: keyof Dada2Params; label: string; hint: string }[] = [
+  { key: 'trunc_len_f', label: 'Truncagem Forward', hint: '0 = sem truncagem (ITS)' },
+  { key: 'trunc_len_r', label: 'Truncagem Reverse', hint: '0 = sem truncagem (ITS)' },
+  { key: 'max_ee_f', label: 'maxEE Forward', hint: 'erros esperados máx.' },
+  { key: 'max_ee_r', label: 'maxEE Reverse', hint: 'erros esperados máx.' },
+  { key: 'trunc_q', label: 'truncQ', hint: 'trunca no 1º Q ≤ valor' },
+  { key: 'max_n', label: 'maxN', hint: 'Ns máximos (DADA2 exige 0)' },
+  { key: 'min_len', label: 'minLen (ITS)', hint: 'comprimento mínimo' },
+]
 
 function autoPair(files: File[]): { pairs: BatchPair[]; unmatched: string[] } {
   const r1s = files.filter(f => /_R1[_.]/.test(f.name))
@@ -78,15 +108,21 @@ export default function MetagenomicsHubPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
+  const [activeTab, setActiveTab] = useState<TabKey>('projeto')
 
   // Create form
   const [form, setForm] = useState({
     code: '', name: '', description: '',
     marker_type: '16S' as '16S' | 'ITS',
-    bioproject_accession: '',
   })
+  const [formAnalyses, setFormAnalyses] = useState<string[]>([])
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
+
+  // DADA2 params editor (aba DADA2)
+  const [paramsDraft, setParamsDraft] = useState<Dada2Params | null>(null)
+  const [savingParams, setSavingParams] = useState(false)
+  const [paramsSaved, setParamsSaved] = useState(false)
 
   // Upload
   const [showUpload, setShowUpload] = useState(false)
@@ -140,6 +176,11 @@ export default function MetagenomicsHubPage() {
     () => api.getMetagenomicsStatus(selectedId!),
     { refreshInterval: 5000 }
   )
+  const { data: dada2Status } = useSWR(
+    selectedId ? `dada2-status-${selectedId}` : null,
+    () => api.getDada2Status(selectedId!),
+    { refreshInterval: 3000 }
+  )
   const { data: asvData, isLoading: asvLoading } = useSWR(
     metaStatus?.has_results && selectedId ? `meta-asv-${selectedId}-${level}` : null,
     () => api.getAsvTable(selectedId!, level)
@@ -151,27 +192,47 @@ export default function MetagenomicsHubPage() {
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
   async function handleCreate() {
-    if (!token) { setCreateError('Sem permissão — faça login como admin'); return }
+    if (!token) { setCreateError('Sem permissão — faça login'); return }
     if (!form.code || !form.name) { setCreateError('Código e nome são obrigatórios'); return }
     setCreating(true); setCreateError('')
     try {
-      const body: any = {
+      // Análises selecionadas → cada uma com todos os seus gráficos do catálogo
+      const catalog = ANALYSES_CATALOG[form.marker_type]
+      const analyses = catalog
+        .filter(def => formAnalyses.includes(def.key))
+        .map(def => ({ analysis_type: def.key, charts: def.charts.map(c => c.key) }))
+      const res = await api.createProject(token, {
         code: form.code.trim().toUpperCase(),
         name: form.name.trim(),
         description: form.description.trim(),
         marker_type: form.marker_type,
-        analyses: [],
-      }
-      if (form.bioproject_accession.trim()) body.bioproject_accession = form.bioproject_accession.trim()
-      const res = await api.createProject(token, body)
+        analyses,
+        dada2_params: dada2Defaults(form.marker_type),
+      })
       await mutateProjects()
       setSelectedId(res.id)
       setShowCreate(false)
-      setForm({ code: '', name: '', description: '', marker_type: '16S', bioproject_accession: '' })
+      setForm({ code: '', name: '', description: '', marker_type: '16S' })
+      setFormAnalyses([])
     } catch (e) {
       setCreateError((e as Error).message)
     } finally {
       setCreating(false)
+    }
+  }
+
+  async function handleSaveParams() {
+    if (!token || !selectedProject || !paramsDraft) return
+    setSavingParams(true); setParamsSaved(false)
+    try {
+      await api.updateProject(token, selectedProject.id, { dada2_params: paramsDraft })
+      await mutateProjects()
+      setParamsSaved(true)
+      setTimeout(() => setParamsSaved(false), 2000)
+    } catch (e) {
+      alert((e as Error).message)
+    } finally {
+      setSavingParams(false)
     }
   }
 
@@ -257,7 +318,10 @@ export default function MetagenomicsHubPage() {
   async function handleGeneratePhyloseq() {
     if (!selectedId) return
     setGeneratingPhyloseq(true)
-    try { await api.enqueueJob(selectedId, 'dada2_pipeline') }
+    try {
+      const payload = (paramsDraft ?? selectedProject?.dada2_params ?? {}) as Record<string, unknown>
+      await api.enqueueJob(selectedId, 'dada2_pipeline', undefined, payload)
+    }
     catch (e) { alert((e as Error).message) }
     finally { setGeneratingPhyloseq(false) }
   }
@@ -337,6 +401,29 @@ export default function MetagenomicsHubPage() {
       : asvData.rows.slice(0, 300)
   }, [asvData, search])
 
+  // Parâmetros DADA2 em edição (draft) ou os salvos no projeto
+  const effectiveParams: Dada2Params = paramsDraft
+    ?? selectedProject?.dada2_params
+    ?? (selectedProject ? dada2Defaults(selectedProject.marker_type) : {})
+
+  // Critérios de prontidão para rodar o DADA2
+  const hasParams = !!selectedProject && Object.keys(selectedProject.dada2_params ?? {}).length > 0
+  const readiness = selectedProject ? [
+    { label: 'Código, nome e marcador', ok: !!selectedProject.code && !!selectedProject.name && !!selectedProject.marker_type },
+    { label: '≥ 2 amostras com par FASTQ', ok: samplesWithFastq.length >= 2 },
+    { label: 'Parâmetros DADA2 definidos', ok: hasParams },
+    { label: 'Análises/gráficos escolhidos', ok: (selectedProject.analyses?.length ?? 0) > 0 },
+  ] : []
+  const isReady = readiness.length > 0 && readiness.every(r => r.ok)
+  const dada2Running = dada2Status?.job_status === 'running' || dada2Status?.job_status === 'queued'
+
+  function selectProject(id: string) {
+    setSelectedId(id === selectedId ? null : id)
+    setShowCreate(false)
+    setParamsDraft(null)
+    setActiveTab('projeto')
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
@@ -348,17 +435,32 @@ export default function MetagenomicsHubPage() {
       </div>
 
       {/* Tab bar */}
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 24 }}>
-        <div style={{
-          padding: '8px 20px',
-          fontSize: 12, fontWeight: 700, fontFamily: 'var(--mono)',
-          borderRadius: '6px 6px 0 0',
-          border: '1px solid var(--border)', borderBottom: '1px solid var(--bg)',
-          background: 'var(--bg)', color: 'var(--cyan)', marginBottom: -1,
-          userSelect: 'none',
-        }}>
-          Projeto
-        </div>
+      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 24 }}>
+        {([['projeto', 'Projeto'], ['dada2', 'DADA2'], ['graficos', 'Gráficos']] as [TabKey, string][]).map(([key, label]) => {
+          const active = activeTab === key
+          const disabled = key !== 'projeto' && !selectedProject
+          return (
+            <button
+              key={key}
+              onClick={() => !disabled && setActiveTab(key)}
+              disabled={disabled}
+              style={{
+                padding: '8px 20px',
+                fontSize: 12, fontWeight: 700, fontFamily: 'var(--mono)',
+                borderRadius: '6px 6px 0 0',
+                border: '1px solid var(--border)',
+                borderBottom: active ? '1px solid var(--bg)' : '1px solid var(--border)',
+                background: active ? 'var(--bg)' : 'transparent',
+                color: disabled ? 'var(--text-3)' : active ? 'var(--cyan)' : 'var(--text-2)',
+                marginBottom: -1,
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                opacity: disabled ? 0.5 : 1,
+              }}
+            >
+              {label}
+            </button>
+          )
+        })}
       </div>
 
       {/* Two-column layout */}
@@ -385,10 +487,9 @@ export default function MetagenomicsHubPage() {
           {showCreate && (
             <div className="card" style={{ padding: 14, marginBottom: 10, borderColor: 'rgba(0,212,255,0.2)' }}>
               {([
-                { key: 'code',                  label: 'Código *',       placeholder: 'INOVAHERB' },
-                { key: 'name',                  label: 'Nome *',         placeholder: 'Micobioma solo' },
-                { key: 'description',           label: 'Descrição',      placeholder: 'Opcional' },
-                { key: 'bioproject_accession',  label: 'BioProject NCBI', placeholder: 'PRJNA...' },
+                { key: 'code',        label: 'Código *',  placeholder: 'INOVAHERB' },
+                { key: 'name',        label: 'Nome *',    placeholder: 'Micobioma solo' },
+                { key: 'description', label: 'Descrição', placeholder: 'Opcional' },
               ] as const).map(f => (
                 <div key={f.key} style={{ marginBottom: 8 }}>
                   <label style={{ display: 'block', fontSize: 11, color: 'var(--text-3)', marginBottom: 3 }}>
@@ -409,12 +510,49 @@ export default function MetagenomicsHubPage() {
                 </label>
                 <select
                   value={form.marker_type}
-                  onChange={e => setForm(v => ({ ...v, marker_type: e.target.value as '16S' | 'ITS' }))}
+                  onChange={e => { setForm(v => ({ ...v, marker_type: e.target.value as '16S' | 'ITS' })); setFormAnalyses([]) }}
                   style={{ ...inp, cursor: 'pointer' }}
                 >
                   <option value="16S">16S rRNA (Bactérias)</option>
                   <option value="ITS">ITS (Fungos)</option>
                 </select>
+              </div>
+
+              {/* Análises/gráficos do projeto */}
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--text-3)', marginBottom: 5 }}>
+                  Análises do projeto
+                </label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {ANALYSES_CATALOG[form.marker_type].map((def: AnalysisDefinition) => {
+                    const checked = formAnalyses.includes(def.key)
+                    return (
+                      <label
+                        key={def.key}
+                        style={{
+                          display: 'flex', alignItems: 'flex-start', gap: 6,
+                          fontSize: 11, color: 'var(--text-2)', cursor: 'pointer',
+                          padding: '4px 6px', borderRadius: 5,
+                          background: checked ? 'rgba(0,212,255,0.08)' : 'transparent',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => setFormAnalyses(prev =>
+                            prev.includes(def.key) ? prev.filter(k => k !== def.key) : [...prev, def.key]
+                          )}
+                          style={{ marginTop: 2 }}
+                        />
+                        <span>
+                          <strong style={{ color: 'var(--text)' }}>{def.label}</strong>
+                          <br />
+                          <span style={{ color: 'var(--text-3)' }}>{def.description}</span>
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
               </div>
 
               {createError && (
@@ -454,10 +592,7 @@ export default function MetagenomicsHubPage() {
               key={p.id}
               role="button"
               tabIndex={0}
-              onClick={() => {
-                setSelectedId(p.id === selectedId ? null : p.id)
-                setShowCreate(false)
-              }}
+              onClick={() => selectProject(p.id)}
               style={{
                 width: '100%', textAlign: 'left',
                 padding: '10px 12px', marginBottom: 6,
@@ -536,13 +671,11 @@ export default function MetagenomicsHubPage() {
                   {selectedProject.marker_type}
                 </span>
                 <span style={{ fontSize: 13, color: 'var(--text-2)' }}>{selectedProject.name}</span>
-                {selectedProject.bioproject_accession && (
-                  <span style={{ fontSize: 11, color: 'var(--amber)', fontFamily: 'var(--mono)' }}>
-                    {selectedProject.bioproject_accession}
-                  </span>
-                )}
               </div>
 
+              {/* ════════════════════ ABA PROJETO ════════════════════ */}
+              {activeTab === 'projeto' && (
+              <>
               {/* ──────────────────────────────────────────────────────────────
                   SECTION ①  Amostras
               ────────────────────────────────────────────────────────────── */}
@@ -780,127 +913,275 @@ export default function MetagenomicsHubPage() {
                 </div>
               </div>
 
-              {/* ──────────────────────────────────────────────────────────────
-                  SECTION ②  Processamento
-              ────────────────────────────────────────────────────────────── */}
-              <div className="card" style={{ padding: '14px 16px' }}>
-                <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', marginBottom: 14 }}>
-                  ② Processamento
+              </>
+              )}
+
+              {/* ════════════════════ ABA DADA2 ════════════════════ */}
+              {activeTab === 'dada2' && (
+              <>
+                {/* Checklist de prontidão */}
+                <div className="card" style={{ padding: '14px 16px' }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', marginBottom: 12 }}>
+                    Prontidão do projeto
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {readiness.map(c => (
+                      <div key={c.label} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                        <span style={{ color: c.ok ? 'var(--green)' : 'var(--text-3)' }}>{c.ok ? '✓' : '○'}</span>
+                        <span style={{ color: c.ok ? 'var(--text)' : 'var(--text-3)' }}>{c.label}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 12, alignItems: 'start' }}>
+                {/* Parâmetros DADA2 */}
+                <div className="card" style={{ padding: '14px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', flex: 1 }}>
+                      Parâmetros DADA2
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-3)' }}>
+                      {selectedProject.marker_type === '16S' ? 'SILVA 138.1' : 'UNITE'}
+                    </span>
+                  </div>
 
-                  {/* Step A — DADA2 */}
-                  <div style={{
-                    padding: 14, background: 'var(--surface)',
-                    border: '1px solid var(--border)', borderRadius: 10,
-                  }}>
-                    <div style={{ fontSize: 10, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
-                      Passo 1 — DADA2
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 10 }}>
+                    {DADA2_FIELDS.map(f => (
+                      <div key={f.key}>
+                        <label style={{ display: 'block', fontSize: 11, color: 'var(--text-2)', marginBottom: 3 }}>
+                          {f.label}
+                        </label>
+                        <input
+                          type="number"
+                          value={(effectiveParams[f.key] as number | undefined) ?? ''}
+                          onChange={e => setParamsDraft({
+                            ...effectiveParams,
+                            [f.key]: e.target.value === '' ? undefined : Number(e.target.value),
+                          })}
+                          style={inp}
+                        />
+                        <div style={{ fontSize: 9, color: 'var(--text-3)', marginTop: 2 }}>{f.hint}</div>
+                      </div>
+                    ))}
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, color: 'var(--text-2)', marginBottom: 3 }}>
+                        Método de quimera
+                      </label>
+                      <select
+                        value={effectiveParams.chimera_method ?? 'consensus'}
+                        onChange={e => setParamsDraft({ ...effectiveParams, chimera_method: e.target.value })}
+                        style={{ ...inp, cursor: 'pointer' }}
+                      >
+                        <option value="consensus">consensus</option>
+                        <option value="pooled">pooled</option>
+                        <option value="per-sample">per-sample</option>
+                      </select>
                     </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.5, marginBottom: 10 }}>
-                      Gera phyloseq <code>.rds</code> a partir dos FASTQs<br />
-                      <span style={{ color: 'var(--text-3)', fontSize: 11 }}>
-                        {selectedProject.marker_type === '16S' ? 'Taxonomia: SILVA 138.1' : 'Taxonomia: UNITE'}
-                      </span>
-                    </div>
-                    <div style={{
-                      fontSize: 11,
-                      color: samplesWithFastq.length > 0 ? 'var(--green)' : 'var(--text-3)',
-                      marginBottom: 10,
-                    }}>
-                      {samplesWithFastq.length > 0
-                        ? `✓ ${samplesWithFastq.length} amostra(s) prontas`
-                        : '⚠ Nenhum FASTQ carregado'}
-                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 }}>
                     <button
-                      onClick={handleGeneratePhyloseq}
-                      disabled={generatingPhyloseq || samplesWithFastq.length === 0}
+                      onClick={handleSaveParams}
+                      disabled={savingParams || !paramsDraft}
                       style={{
-                        padding: '6px 14px',
-                        background: samplesWithFastq.length > 0 && !generatingPhyloseq
-                          ? 'rgba(16,212,138,0.15)' : 'var(--surface-2)',
-                        border: `1px solid ${samplesWithFastq.length > 0 ? 'rgba(16,212,138,0.3)' : 'var(--border)'}`,
-                        borderRadius: 6,
-                        color: samplesWithFastq.length > 0 && !generatingPhyloseq ? 'var(--green)' : 'var(--text-3)',
-                        fontSize: 12, fontWeight: 600,
-                        cursor: samplesWithFastq.length > 0 && !generatingPhyloseq ? 'pointer' : 'not-allowed',
+                        ...sel,
+                        color: paramsDraft ? 'var(--cyan)' : 'var(--text-3)',
+                        background: paramsDraft ? 'rgba(0,212,255,0.12)' : 'var(--surface-2)',
+                        cursor: paramsDraft && !savingParams ? 'pointer' : 'not-allowed',
                       }}
                     >
-                      {generatingPhyloseq ? 'Enfileirado…' : '⚗ Gerar phyloseq'}
+                      {savingParams ? 'Salvando…' : '💾 Salvar parâmetros'}
                     </button>
-                  </div>
-
-                  {/* Arrow */}
-                  <div style={{ fontSize: 20, color: 'var(--text-3)', paddingTop: 40 }}>→</div>
-
-                  {/* Step B — Metagenomics */}
-                  <div style={{
-                    padding: 14, background: 'var(--surface)',
-                    border: '1px solid var(--border)', borderRadius: 10,
-                  }}>
-                    <div style={{ fontSize: 10, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
-                      Passo 2 — Análise
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.5, marginBottom: 10 }}>
-                      Diversidade alfa/beta · PCoA<br />
-                      <span style={{ fontSize: 11, color: 'var(--text-3)' }}>Tabela de abundância + ANCOM-BC2</span>
-                    </div>
-
-                    {/* Status feedback */}
-                    {(metaStatus?.job_status === 'running' || metaStatus?.job_status === 'queued') && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--cyan)', marginBottom: 8 }}>
-                        <span className="dot dot-cyan pulse" style={{ width: 6, height: 6 }} />
-                        {metaStatus.job_status === 'queued' ? 'Na fila…' : 'Rodando…'}
-                      </div>
-                    )}
-                    {metaStatus?.job_status === 'failed' && (
-                      <div style={{ fontSize: 11, color: 'var(--red)', marginBottom: 8 }}>
-                        ✗ {metaStatus.error_msg ?? 'Falha desconhecida'}
-                      </div>
-                    )}
-                    {metaStatus?.has_results && (
-                      <div style={{ fontSize: 11, color: 'var(--green)', marginBottom: 8 }}>
-                        ✓ Concluído {metaStatus.completed_at ? new Date(metaStatus.completed_at).toLocaleString('pt-BR') : ''}
-                      </div>
-                    )}
-
-                    {/* Phyloseq selector */}
-                    <div style={{ fontSize: 11, color: artifacts?.available?.length ? 'var(--green)' : 'var(--text-3)', marginBottom: 8 }}>
-                      {artifacts?.available?.length
-                        ? `✓ ${artifacts.available.length} phyloseq disponível`
-                        : '⚠ Execute o Passo 1 primeiro'}
-                    </div>
-
-                    {metaStatus?.job_status !== 'running' && metaStatus?.job_status !== 'queued' && (
-                      <select
-                        defaultValue=""
-                        onChange={e => { if (e.target.value) handleRunAnalysis(Number(e.target.value)) }}
-                        disabled={!artifacts?.available?.length || runningAnalysis}
-                        style={{
-                          width: '100%', padding: '6px 8px',
-                          background: artifacts?.available?.length ? 'rgba(16,212,138,0.1)' : 'var(--surface-2)',
-                          border: `1px solid ${artifacts?.available?.length ? 'rgba(16,212,138,0.3)' : 'var(--border)'}`,
-                          borderRadius: 6,
-                          color: artifacts?.available?.length ? 'var(--green)' : 'var(--text-3)',
-                          fontSize: 12,
-                          cursor: artifacts?.available?.length ? 'pointer' : 'not-allowed',
-                        }}
-                      >
-                        <option value="" disabled>
-                          {runningAnalysis ? 'Enfileirando…' : '▶ Selecionar phyloseq e rodar'}
-                        </option>
-                        {artifacts?.available?.map((a: any) => (
-                          <option key={a.job_id} value={a.phyloseq_oid}>
-                            OID {a.phyloseq_oid}
-                            {a.created_at ? ` — ${new Date(a.created_at).toLocaleDateString('pt-BR')}` : ''}
-                          </option>
-                        ))}
-                      </select>
-                    )}
+                    <button
+                      onClick={() => setParamsDraft(dada2Defaults(selectedProject.marker_type))}
+                      style={{ ...sel, color: 'var(--text-2)' }}
+                    >
+                      ↺ Restaurar defaults
+                    </button>
+                    {paramsSaved && <span style={{ fontSize: 11, color: 'var(--green)' }}>✓ Salvo</span>}
                   </div>
                 </div>
-              </div>
+
+                {/* Execução do DADA2 */}
+                <div className="card" style={{ padding: '14px 16px' }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', marginBottom: 10 }}>
+                    Executar DADA2 — QC · ASV inference · classificação
+                  </div>
+
+                  {dada2Running ? (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--cyan)', marginBottom: 8 }}>
+                        <span className="dot dot-cyan pulse" style={{ width: 6, height: 6 }} />
+                        {dada2Status?.job_status === 'queued'
+                          ? 'Na fila…'
+                          : (dada2Status?.progress_stage ?? 'Rodando…')}
+                      </div>
+                      <div style={{ height: 6, background: 'var(--surface-2)', borderRadius: 99, overflow: 'hidden' }}>
+                        <div style={{
+                          height: '100%', width: `${dada2Status?.progress_pct ?? 0}%`,
+                          background: 'var(--cyan)', borderRadius: 99, transition: 'width 0.4s',
+                        }} />
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>
+                        {dada2Status?.progress_pct ?? 0}%
+                      </div>
+                    </>
+                  ) : (
+                    <button
+                      onClick={handleGeneratePhyloseq}
+                      disabled={!isReady || generatingPhyloseq}
+                      style={{
+                        padding: '8px 18px',
+                        background: isReady && !generatingPhyloseq ? 'rgba(16,212,138,0.15)' : 'var(--surface-2)',
+                        border: `1px solid ${isReady ? 'rgba(16,212,138,0.3)' : 'var(--border)'}`,
+                        borderRadius: 6,
+                        color: isReady && !generatingPhyloseq ? 'var(--green)' : 'var(--text-3)',
+                        fontSize: 13, fontWeight: 700,
+                        cursor: isReady && !generatingPhyloseq ? 'pointer' : 'not-allowed',
+                      }}
+                    >
+                      {generatingPhyloseq ? 'Enfileirando…' : '▶ Rodar DADA2'}
+                    </button>
+                  )}
+
+                  {!isReady && !dada2Running && (
+                    <div style={{ fontSize: 11, color: 'var(--amber)', marginTop: 8 }}>
+                      Complete os critérios de prontidão acima para liberar a execução.
+                    </div>
+                  )}
+
+                  {dada2Status?.job_status === 'failed' && (
+                    <div style={{
+                      marginTop: 10, padding: '10px 12px', borderRadius: 8,
+                      background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+                    }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red)', marginBottom: 4 }}>
+                        ✗ Erro na execução
+                      </div>
+                      <pre style={{
+                        fontSize: 10, color: 'var(--text-2)', fontFamily: 'var(--mono)',
+                        whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0,
+                      }}>
+                        {dada2Status.error_msg ?? 'Falha desconhecida'}
+                      </pre>
+                    </div>
+                  )}
+
+                  {dada2Status?.job_status === 'done' && dada2Status?.has_phyloseq && (
+                    <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 8 }}>
+                      ✓ phyloseq gerado {dada2Status.completed_at ? `em ${new Date(dada2Status.completed_at).toLocaleString('pt-BR')}` : ''}
+                    </div>
+                  )}
+                </div>
+
+                {/* Análise metagenômica (gera a tabela de ASVs / diversidade) */}
+                <div className="card" style={{ padding: '14px 16px' }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', marginBottom: 10 }}>
+                    Análise metagenômica — tabela de ASVs · diversidade · PCoA
+                  </div>
+                  <div style={{ fontSize: 11, color: artifacts?.available?.length ? 'var(--green)' : 'var(--text-3)', marginBottom: 8 }}>
+                    {artifacts?.available?.length
+                      ? `✓ ${artifacts.available.length} phyloseq disponível`
+                      : '⚠ Rode o DADA2 primeiro para gerar o phyloseq'}
+                  </div>
+
+                  {(metaStatus?.job_status === 'running' || metaStatus?.job_status === 'queued') ? (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--cyan)', marginBottom: 8 }}>
+                        <span className="dot dot-cyan pulse" style={{ width: 6, height: 6 }} />
+                        {metaStatus.job_status === 'queued' ? 'Na fila…' : (metaStatus.progress_stage ?? 'Rodando…')}
+                      </div>
+                      <div style={{ height: 6, background: 'var(--surface-2)', borderRadius: 99, overflow: 'hidden' }}>
+                        <div style={{
+                          height: '100%', width: `${metaStatus.progress_pct ?? 0}%`,
+                          background: 'var(--cyan)', borderRadius: 99, transition: 'width 0.4s',
+                        }} />
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>{metaStatus.progress_pct ?? 0}%</div>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        const oid = artifacts?.available?.[0]?.phyloseq_oid
+                        if (oid) handleRunAnalysis(Number(oid))
+                      }}
+                      disabled={!artifacts?.available?.length || runningAnalysis}
+                      style={{
+                        padding: '8px 18px',
+                        background: artifacts?.available?.length && !runningAnalysis ? 'rgba(16,212,138,0.15)' : 'var(--surface-2)',
+                        border: `1px solid ${artifacts?.available?.length ? 'rgba(16,212,138,0.3)' : 'var(--border)'}`,
+                        borderRadius: 6,
+                        color: artifacts?.available?.length && !runningAnalysis ? 'var(--green)' : 'var(--text-3)',
+                        fontSize: 13, fontWeight: 700,
+                        cursor: artifacts?.available?.length && !runningAnalysis ? 'pointer' : 'not-allowed',
+                      }}
+                    >
+                      {runningAnalysis ? 'Enfileirando…' : '▶ Rodar análise'}
+                    </button>
+                  )}
+
+                  {metaStatus?.job_status === 'failed' && (
+                    <div style={{
+                      marginTop: 10, padding: '10px 12px', borderRadius: 8,
+                      background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+                    }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--red)', marginBottom: 4 }}>✗ Erro na análise</div>
+                      <pre style={{
+                        fontSize: 10, color: 'var(--text-2)', fontFamily: 'var(--mono)',
+                        whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0,
+                      }}>
+                        {metaStatus.error_msg ?? 'Falha desconhecida'}
+                      </pre>
+                    </div>
+                  )}
+                  {metaStatus?.has_results && (
+                    <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 8 }}>
+                      ✓ Concluído — veja a aba <strong>Gráficos</strong>
+                    </div>
+                  )}
+                </div>
+              </>
+              )}
+
+              {/* ════════════════════ ABA GRÁFICOS ════════════════════ */}
+              {activeTab === 'graficos' && (
+              <>
+                {/* Análises escolhidas no projeto */}
+                <div className="card" style={{ padding: '14px 16px' }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)', marginBottom: 12 }}>
+                    Análises do projeto
+                  </div>
+                  {(!selectedProject.analyses || selectedProject.analyses.length === 0) ? (
+                    <div style={{ fontSize: 12, color: 'var(--text-3)' }}>
+                      Nenhuma análise escolhida. Edite o projeto para adicionar.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {selectedProject.analyses.map(a => (
+                        <div key={a.analysis_type} style={{
+                          display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+                          padding: '8px 10px', background: 'var(--surface)',
+                          border: '1px solid var(--border)', borderRadius: 8,
+                        }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--cyan)', fontFamily: 'var(--mono)' }}>
+                            {a.analysis_type}
+                          </span>
+                          {a.charts.map(c => (
+                            <span key={c} className="badge badge-purple" style={{ fontSize: 9 }}>{c}</span>
+                          ))}
+                          {metaStatus?.last_job_id && (
+                            <Link
+                              href={`/analysis/${metaStatus.last_job_id}`}
+                              style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--cyan)' }}
+                            >
+                              abrir →
+                            </Link>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
               {/* ──────────────────────────────────────────────────────────────
                   SECTION ③  Tabela de Abundância
@@ -1033,6 +1314,14 @@ export default function MetagenomicsHubPage() {
                     </div>
                   )}
                 </div>
+              )}
+
+              {!metaStatus?.has_results && (
+                <div className="card" style={{ padding: 24, textAlign: 'center', fontSize: 12, color: 'var(--text-3)' }}>
+                  A tabela de abundância aparece aqui após rodar a análise metagenômica (aba DADA2).
+                </div>
+              )}
+              </>
               )}
 
             </div>

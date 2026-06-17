@@ -110,8 +110,17 @@ export const api = {
                      body: JSON.stringify(body),
                    }),
 
+  updateProject: (token: string, id: string, body: UpdateProjectBody) =>
+                   apiFetchWithToken<Project>(`/api/v1/projects/${id}`, token, {
+                     method: 'PUT',
+                     body: JSON.stringify(body),
+                   }),
+
   deleteProject: (token: string, id: string) =>
                    apiFetchWithToken<void>(`/api/v1/projects/${id}`, token, { method: 'DELETE' }),
+
+  getDada2Status: (projectId: string) =>
+    apiFetch<Dada2Status>(`/api/v1/metagenomics/${projectId}/dada2-status`),
 
   // Metagenomics module
   getMetagenomicsStatus: (projectId: string) =>
@@ -151,6 +160,17 @@ export interface ProjectAuthor {
   avatar_url: string | null
 }
 
+export interface Dada2Params {
+  trunc_len_f?: number
+  trunc_len_r?: number
+  max_ee_f?: number
+  max_ee_r?: number
+  trunc_q?: number
+  max_n?: number
+  min_len?: number
+  chimera_method?: string
+}
+
 export interface Project {
   id: string
   code: string
@@ -159,6 +179,8 @@ export interface Project {
   marker_type: '16S' | 'ITS'
   status: string
   bioproject_accession: string | null
+  created_by: string | null
+  dada2_params: Dada2Params
   author: ProjectAuthor | null
   analyses: AnalysisConfig[]
 }
@@ -168,8 +190,15 @@ export interface CreateProjectBody {
   name: string
   description: string
   marker_type: '16S' | 'ITS'
-  bioproject_accession?: string
   analyses: AnalysisConfig[]
+  dada2_params?: Dada2Params
+}
+
+export interface UpdateProjectBody {
+  name?: string
+  description?: string
+  analyses?: AnalysisConfig[]
+  dada2_params?: Dada2Params
 }
 
 export interface SraMetadata {
@@ -265,6 +294,7 @@ export interface RunningJob {
   elapsed_s: number
   estimated_s: number
   progress_pct: number
+  progress_stage?: string | null
   remaining_s: number
 }
 
@@ -353,8 +383,20 @@ export interface MetagenomicsStatus {
   has_results: boolean
   job_status: 'queued' | 'running' | 'done' | 'failed' | null
   last_job_id: string | null
-  completed_at: string | null
-  error_msg: string | null
+  completed_at?: string | null
+  error_msg?: string | null
+  progress_pct?: number
+  progress_stage?: string | null
+}
+
+export interface Dada2Status {
+  job_status: 'queued' | 'running' | 'done' | 'failed' | null
+  last_job_id: string | null
+  completed_at?: string | null
+  error_msg?: string | null
+  progress_pct?: number
+  progress_stage?: string | null
+  has_phyloseq?: boolean
 }
 
 export interface AsvRow {

@@ -217,7 +217,6 @@ export default function NewProjectPage() {
         name:                 name.trim(),
         description:          description.trim(),
         marker_type:          markerType,
-        bioproject_accession: bioprojectAcc.trim().toUpperCase() || undefined,
         analyses,
       })
 
