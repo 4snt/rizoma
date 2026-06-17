@@ -8,6 +8,7 @@ import {
   api,
   type Project,
   type Sample,
+  type Job,
   type TaxLevel,
   type AsvFullRow,
   type Dada2Params,
@@ -142,9 +143,39 @@ export default function MetagenomicsHubPage() {
     metaStatus?.has_results && selectedId ? `meta-asv-${selectedId}-${level}` : null,
     () => api.getAsvTable(selectedId!, level)
   )
+  const { data: jobs, mutate: mutateJobs } = useSWR(
+    selectedId ? `meta-jobs-${selectedId}` : null,
+    () => api.getJobs(selectedId!),
+    { refreshInterval: 5000 }
+  )
 
   const selectedProject = projects?.find((p: Project) => p.id === selectedId)
   const samplesWithFastq = (samples ?? []).filter((s: Sample) => s.fastq_r1_oid && s.fastq_r2_oid)
+
+  // Último job concluído por tipo de análise (para casar análise → jobId do gráfico)
+  const latestDoneJobByType = (() => {
+    const map: Record<string, Job> = {}
+    for (const j of (jobs ?? []) as Job[]) {
+      if (j.status === 'done' && !map[j.job_type]) map[j.job_type] = j
+    }
+    return map
+  })()
+
+  const [runningType, setRunningType] = useState<string | null>(null)
+  async function handleRunAnalysisType(analysisType: string) {
+    if (!selectedId) return
+    const oid = artifacts?.available?.[0]?.phyloseq_oid
+    if (!oid) { alert('Gere o phyloseq (aba DADA2) antes de rodar as análises.'); return }
+    setRunningType(analysisType)
+    try {
+      await api.enqueueJob(selectedId, analysisType, Number(oid))
+      await mutateJobs()
+    } catch (e) {
+      alert((e as Error).message)
+    } finally {
+      setRunningType(null)
+    }
+  }
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
@@ -1126,14 +1157,38 @@ export default function MetagenomicsHubPage() {
                           {a.charts.map(c => (
                             <span key={c} className="badge badge-purple" style={{ fontSize: 9 }}>{c}</span>
                           ))}
-                          {metaStatus?.last_job_id && (
-                            <Link
-                              href={`/analysis/${metaStatus.last_job_id}`}
-                              style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--cyan)' }}
-                            >
-                              abrir →
-                            </Link>
-                          )}
+                          {(() => {
+                            const done = latestDoneJobByType[a.analysis_type]
+                            const route = a.analysis_type === 'spieceasi' ? 'network' : 'analysis'
+                            const running = (jobs ?? []).some((j: Job) =>
+                              j.job_type === a.analysis_type && (j.status === 'queued' || j.status === 'running'))
+                            return (
+                              <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+                                {done ? (
+                                  <Link href={`/${route}/${done.id}`} style={{ fontSize: 11, color: 'var(--cyan)' }}>
+                                    abrir gráfico →
+                                  </Link>
+                                ) : running ? (
+                                  <span style={{ fontSize: 11, color: 'var(--cyan)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                                    <span className="dot dot-cyan pulse" style={{ width: 5, height: 5 }} /> rodando…
+                                  </span>
+                                ) : (
+                                  <button
+                                    onClick={() => handleRunAnalysisType(a.analysis_type)}
+                                    disabled={runningType === a.analysis_type || !artifacts?.available?.length}
+                                    title={artifacts?.available?.length ? 'Enfileirar esta análise' : 'Gere o phyloseq primeiro (aba DADA2)'}
+                                    style={{
+                                      ...sel,
+                                      color: artifacts?.available?.length ? 'var(--green)' : 'var(--text-3)',
+                                      cursor: artifacts?.available?.length ? 'pointer' : 'not-allowed',
+                                    }}
+                                  >
+                                    {runningType === a.analysis_type ? '…' : '▶ Rodar'}
+                                  </button>
+                                )}
+                              </span>
+                            )
+                          })()}
                         </div>
                       ))}
                     </div>

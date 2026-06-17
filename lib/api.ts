@@ -506,3 +506,80 @@ export interface BiomarkersResult {
   comparison?: string
   note?: string
 }
+
+// ── Contratos das análises do catálogo (saída do R Worker) ───────────────────
+
+export interface DeseqDeg {
+  gene_id: string
+  log2_fold_change: number
+  p_adjusted: number
+  base_mean: number
+}
+export interface DeseqResult {
+  degs: DeseqDeg[]
+  n_significant: number
+}
+
+export interface AncombcTaxon {
+  taxon: string
+  lfc: number
+  q_val: number
+  diff_abn: boolean
+}
+export interface AncombcResult {
+  taxa: AncombcTaxon[]
+}
+
+export interface Maaslin2Association {
+  feature: string
+  metadata: string
+  coef: number
+  qval: number
+}
+export interface Maaslin2Result {
+  associations: Maaslin2Association[]
+}
+
+export interface GseaPathway {
+  go_id: string
+  description: string
+  p_adjust: number
+  gene_ratio: string | number
+}
+export interface GseaResult {
+  organism: string
+  method: string
+  pathways: GseaPathway[]
+}
+
+export interface FunguildAnnotation {
+  taxon: string
+  guild: string | null
+  trophic_mode: string | null
+  confidence_ranking: string | null
+}
+export interface FunguildResult {
+  annotations: FunguildAnnotation[]
+}
+
+export interface Picrust2Pathway {
+  pathway_id: string
+  mean_abundance: number
+}
+export interface Picrust2Result {
+  pathways: Picrust2Pathway[]
+}
+
+export interface NetworkNode {
+  id: string
+  keystone_score?: number
+}
+export interface NetworkEdge {
+  source: string
+  target: string
+  weight?: number
+}
+export interface SpiecEasiResult {
+  nodes: NetworkNode[]
+  edges: NetworkEdge[]
+}
