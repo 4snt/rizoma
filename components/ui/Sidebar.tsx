@@ -9,16 +9,14 @@ import { api, type WorkerStatus } from '@/lib/api'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 
 const NAV_ITEMS = [
-  { href: '/',              label: 'Dashboard',      icon: '⬡' },
-  { href: '/projects',      label: 'Projetos',       icon: '⬡' },
-  { href: '/jobs',          label: 'Fila de Jobs',   icon: '◈' },
-  { href: '/diversity',     label: 'Alpha Diversity', icon: '◎' },
-  { href: '/docs',          label: 'API Docs',        icon: '◫' },
+  { href: '/',             label: 'Dashboard',    icon: '⬡' },
+  { href: '/metagenomics', label: 'Metagenômica', icon: '◎' },
+  { href: '/jobs',         label: 'Fila de Jobs', icon: '◈' },
+  { href: '/docs',         label: 'API Docs',     icon: '◫' },
 ]
 
 const ADMIN_NAV_ITEMS = [
-  { href: '/admin/projects/new', label: 'Novo Projeto', icon: '⊕' },
-  { href: '/admin/users',        label: 'Usuários',     icon: '◉' },
+  { href: '/admin/users', label: 'Usuários', icon: '◉' },
 ]
 
 function fmtSeconds(s: number): string {
