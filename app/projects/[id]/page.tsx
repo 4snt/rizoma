@@ -346,11 +346,11 @@ export default function ProjectDetailPage() {
         )}
       </div>
 
-      {/* Acesso rápido ao módulo metagenômico */}
+      {/* Acesso rápido ao módulo metagenômico (hub unificado) */}
       {project && (
         <div style={{ marginBottom: 20 }}>
           <Link
-            href={`/projects/${id}/metagenomics`}
+            href="/metagenomics"
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 8,
               padding: '8px 18px',
