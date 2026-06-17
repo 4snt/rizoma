@@ -12,6 +12,7 @@ import {
   type AlphaPoint,
   type BiomarkerEntry,
   type PcoaPoint,
+  type AsvFullRow,
 } from '@/lib/api'
 
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false })
@@ -27,7 +28,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'biomarcadores', label: '⑤ Biomarcadores' },
 ]
 
-const LEVELS: TaxLevel[] = ['phylum', 'class', 'order', 'family', 'genus', 'species']
+const LEVELS: TaxLevel[] = ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'species']
 const BETA_METRICS: { key: BetaMetricKey; label: string }[] = [
   { key: 'bray',    label: 'Bray-Curtis' },
   { key: 'jaccard', label: 'Jaccard' },
@@ -77,6 +78,22 @@ function StatusBadge({ status }: { status: string | null }) {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
+function csvDownload(filename: string, headers: string[], rows: string[][]) {
+  const bom = '﻿'
+  const content = bom + [headers, ...rows]
+    .map(row => row.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))
+    .join('\n')
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 export default function MetagenomicsPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
@@ -86,6 +103,8 @@ export default function MetagenomicsPage() {
   const [betaMetric, setBetaMetric] = useState<BetaMetricKey>('bray')
   const [asvSearch, setAsvSearch] = useState('')
   const [runningJob, setRunningJob] = useState(false)
+  const [showRelAbund, setShowRelAbund] = useState(false)
+  const [exportingFull, setExportingFull] = useState(false)
 
   // ── SWR fetchers ───────────────────────────────────────────────────────────
   const { data: status, mutate: mutateStatus } = useSWR(
@@ -118,6 +137,44 @@ export default function MetagenomicsPage() {
     tab === 'biomarcadores' && status?.has_results ? `bio-${id}-${level}` : null,
     () => api.getBiomarkers(id, level)
   )
+
+  // ── CSV export ────────────────────────────────────────────────────────────
+  function handleExportCsv() {
+    if (!asvData) return
+    const headers = ['Taxon', 'Total', ...asvData.sample_names]
+    const rows = asvData.rows.map(r => [
+      r.taxon,
+      String(r.total),
+      ...asvData.sample_names.map(s => String(r.samples[s] ?? 0)),
+    ])
+    csvDownload(`${id}_${level}_abundance.csv`, headers, rows)
+  }
+
+  async function handleExportFull() {
+    setExportingFull(true)
+    try {
+      const data = await api.getAsvTableFull(id)
+      const TAX = ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'species']
+      const headers = [
+        ...TAX,
+        ...data.sample_names.map(s => `count_${s}`),
+        ...data.sample_names.map(s => `rel_pct_${s}`),
+        'total',
+      ]
+      const rows = data.rows.map((r: AsvFullRow) => [
+        r.domain ?? '', r.phylum ?? '', r.class ?? '', r.order ?? '',
+        r.family ?? '', r.genus ?? '', r.species ?? '',
+        ...data.sample_names.map(s => String(r.samples[s] ?? 0)),
+        ...data.sample_names.map(s => String((r.rel_abundance[s] ?? 0).toFixed(4))),
+        String(r.total),
+      ])
+      csvDownload(`${id}_taxonomy_full.csv`, headers, rows)
+    } catch (e) {
+      alert('Erro ao exportar tabela completa: ' + (e as Error).message)
+    } finally {
+      setExportingFull(false)
+    }
+  }
 
   // ── Handlers ───────────────────────────────────────────────────────────────
   async function handleRun(phyloseqOid: number) {
@@ -385,13 +442,44 @@ export default function MetagenomicsPage() {
             <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
               <div style={{
                 padding: '12px 16px', borderBottom: '1px solid var(--border)',
-                display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+                display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
               }}>
                 <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>
                   Abundância — nível {level}
                 </span>
                 <span className="badge badge-cyan">{asvData.rows.length} taxa</span>
                 <span className="badge badge-purple">{asvData.total_asvs} ASVs raw</span>
+                <button
+                  onClick={() => setShowRelAbund(v => !v)}
+                  style={{
+                    ...selStyle,
+                    background: showRelAbund ? 'rgba(0,212,255,0.15)' : 'var(--surface-2)',
+                    color: showRelAbund ? 'var(--cyan)' : 'var(--text-2)',
+                    border: `1px solid ${showRelAbund ? 'rgba(0,212,255,0.35)' : 'var(--border)'}`,
+                  }}
+                  title="Alternar entre contagens absolutas e abundância relativa (%)"
+                >
+                  {showRelAbund ? '% Rel.' : '# Abs.'}
+                </button>
+                <button
+                  onClick={handleExportCsv}
+                  style={{ ...selStyle }}
+                  title={`Exportar tabela de ${level} como CSV`}
+                >
+                  ⬇ CSV
+                </button>
+                <button
+                  onClick={handleExportFull}
+                  disabled={exportingFull}
+                  style={{
+                    ...selStyle,
+                    color: exportingFull ? 'var(--text-3)' : 'var(--green)',
+                    border: `1px solid ${exportingFull ? 'var(--border)' : 'rgba(16,212,138,0.35)'}`,
+                  }}
+                  title="Exportar tabela completa com todos os 7 níveis taxonômicos (domain→species) como colunas"
+                >
+                  {exportingFull ? 'Exportando…' : '⬇ Tabela Completa'}
+                </button>
                 <input
                   type="text"
                   placeholder="Filtrar taxon…"
@@ -428,11 +516,15 @@ export default function MetagenomicsPage() {
                           {row.taxon}
                         </td>
                         <td style={{ padding: '7px 12px', textAlign: 'right', color: 'var(--cyan)', fontFamily: 'var(--mono)' }}>
-                          {row.total.toLocaleString('pt-BR')}
+                          {showRelAbund
+                            ? `${asvData.sample_names.reduce((acc, s) => acc + (row.rel_abundance?.[s] ?? 0), 0).toFixed(1)}%`
+                            : row.total.toLocaleString('pt-BR')}
                         </td>
                         {asvData.sample_names.slice(0, 12).map(s => (
                           <td key={s} style={{ padding: '7px 8px', textAlign: 'right', color: 'var(--text-2)', fontFamily: 'var(--mono)', fontSize: 10 }}>
-                            {(row.samples[s] ?? 0).toLocaleString('pt-BR')}
+                            {showRelAbund
+                              ? `${(row.rel_abundance?.[s] ?? 0).toFixed(2)}%`
+                              : (row.samples[s] ?? 0).toLocaleString('pt-BR')}
                           </td>
                         ))}
                       </tr>

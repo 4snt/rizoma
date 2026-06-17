@@ -123,6 +123,9 @@ export const api = {
   getAsvTable: (projectId: string, level = 'genus') =>
     apiFetch<AsvTableResult>(`/api/v1/metagenomics/${projectId}/asv-table?level=${level}`),
 
+  getAsvTableFull: (projectId: string) =>
+    apiFetch<AsvFullTableResult>(`/api/v1/metagenomics/${projectId}/asv-table/full`),
+
   getDiversity: (projectId: string, level = 'genus') =>
     apiFetch<DiversityResult>(`/api/v1/metagenomics/${projectId}/diversity?level=${level}`),
 
@@ -340,7 +343,7 @@ export interface Invite {
 
 // ── Metagenomics ────────────────────────────────────────────────────────────
 
-export type TaxLevel = 'phylum' | 'class' | 'order' | 'family' | 'genus' | 'species'
+export type TaxLevel = 'domain' | 'phylum' | 'class' | 'order' | 'family' | 'genus' | 'species'
 export type BetaMetricKey = 'bray' | 'jaccard'
 
 export interface MetagenomicsStatus {
@@ -353,8 +356,9 @@ export interface MetagenomicsStatus {
 
 export interface AsvRow {
   taxon: string
-  taxonomy: Partial<Record<TaxLevel | 'domain', string>>
+  taxonomy: Partial<Record<TaxLevel, string>>
   samples: Record<string, number>
+  rel_abundance?: Record<string, number>
   total: number
 }
 
@@ -363,6 +367,26 @@ export interface AsvTableResult {
   sample_names: string[]
   rows: AsvRow[]
   available_levels: string[]
+  total_asvs: number
+}
+
+export interface AsvFullRow {
+  domain: string
+  phylum: string
+  class: string
+  order: string
+  family: string
+  genus: string
+  species: string
+  samples: Record<string, number>
+  rel_abundance: Record<string, number>
+  total: number
+}
+
+export interface AsvFullTableResult {
+  tax_levels: string[]
+  sample_names: string[]
+  rows: AsvFullRow[]
   total_asvs: number
 }
 
