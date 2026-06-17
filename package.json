@@ -21,7 +21,8 @@
     "react-plotly.js": "^2.6.0",
     "recharts": "^2.12.7",
     "swagger-ui-react": "^5.32.6",
-    "swr": "^2.2.5"
+    "swr": "^2.2.5",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/cytoscape": "^3.21.4",

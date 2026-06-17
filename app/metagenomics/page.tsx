@@ -72,9 +72,11 @@ const sel: React.CSSProperties = {
 export default function MetagenomicsHubPage() {
   const { data: session } = useSession()
   const token = (session as any)?.accessToken as string | undefined
+  const isAdmin = (session as any)?.role === 'admin'
 
   // Navigation
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
 
   // Create form
@@ -93,6 +95,7 @@ export default function MetagenomicsHubPage() {
   const [batchUploading, setBatchUploading] = useState(false)
   const [batchDone, setBatchDone] = useState(0)
   const [batchError, setBatchError] = useState('')
+  const [uploadMode, setUploadMode] = useState<'folder' | 'files'>('folder')
   const batchRef = useRef<HTMLInputElement>(null)
 
   // SRA
@@ -169,6 +172,22 @@ export default function MetagenomicsHubPage() {
       setCreateError((e as Error).message)
     } finally {
       setCreating(false)
+    }
+  }
+
+  async function handleDeleteProject(p: Project, e: React.MouseEvent) {
+    e.stopPropagation()
+    if (!token) { alert('Sem permissão — faça login como admin'); return }
+    if (!confirm(`Excluir o projeto "${p.code}" e TODOS os seus dados (amostras, jobs, resultados)?\n\nEsta ação não pode ser desfeita.`)) return
+    setDeletingId(p.id)
+    try {
+      await api.deleteProject(token, p.id)
+      if (selectedId === p.id) setSelectedId(null)
+      await mutateProjects()
+    } catch (err) {
+      alert((err as Error).message)
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -262,7 +281,7 @@ export default function MetagenomicsHubPage() {
     csvDownload(`${selectedProject?.code ?? selectedId}_${level}.csv`, headers, rows)
   }
 
-  async function handleExportFull() {
+  async function handleExportFull(fmt: 'csv' | 'xlsx') {
     if (!selectedId) return
     setExportingFull(true)
     try {
@@ -274,14 +293,35 @@ export default function MetagenomicsHubPage() {
         ...data.sample_names.map((s: string) => `rel_pct_${s}`),
         'total',
       ]
-      const rows = data.rows.map((r: AsvFullRow) => [
-        r.domain ?? '', r.phylum ?? '', r.class ?? '',
-        r.order ?? '', r.family ?? '', r.genus ?? '', r.species ?? '',
-        ...data.sample_names.map((s: string) => String(r.samples[s] ?? 0)),
-        ...data.sample_names.map((s: string) => String((r.rel_abundance[s] ?? 0).toFixed(4))),
-        String(r.total),
-      ])
-      csvDownload(`${selectedProject?.code ?? selectedId}_taxonomy_full.csv`, headers, rows)
+      const base = `${selectedProject?.code ?? selectedId}_taxonomy_full`
+
+      if (fmt === 'xlsx') {
+        // Import dinâmico: mantém a lib SheetJS fora do bundle inicial.
+        const XLSX = await import('xlsx')
+        const aoa: (string | number)[][] = [
+          headers,
+          ...data.rows.map((r: AsvFullRow) => [
+            r.domain ?? '', r.phylum ?? '', r.class ?? '',
+            r.order ?? '', r.family ?? '', r.genus ?? '', r.species ?? '',
+            ...data.sample_names.map((s: string) => r.samples[s] ?? 0),
+            ...data.sample_names.map((s: string) => Number((r.rel_abundance[s] ?? 0).toFixed(4))),
+            r.total,
+          ]),
+        ]
+        const ws = XLSX.utils.aoa_to_sheet(aoa)
+        const wb = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(wb, ws, 'Abundância')
+        XLSX.writeFile(wb, `${base}.xlsx`)
+      } else {
+        const rows = data.rows.map((r: AsvFullRow) => [
+          r.domain ?? '', r.phylum ?? '', r.class ?? '',
+          r.order ?? '', r.family ?? '', r.genus ?? '', r.species ?? '',
+          ...data.sample_names.map((s: string) => String(r.samples[s] ?? 0)),
+          ...data.sample_names.map((s: string) => String((r.rel_abundance[s] ?? 0).toFixed(4))),
+          String(r.total),
+        ])
+        csvDownload(`${base}.csv`, headers, rows)
+      }
     } catch (e) {
       alert((e as Error).message)
     } finally {
@@ -410,8 +450,10 @@ export default function MetagenomicsHubPage() {
           )}
 
           {projects?.map((p: Project) => (
-            <button
+            <div
               key={p.id}
+              role="button"
+              tabIndex={0}
               onClick={() => {
                 setSelectedId(p.id === selectedId ? null : p.id)
                 setShowCreate(false)
@@ -423,6 +465,7 @@ export default function MetagenomicsHubPage() {
                 border: `1px solid ${p.id === selectedId ? 'rgba(0,212,255,0.3)' : 'var(--border)'}`,
                 borderRadius: 8, cursor: 'pointer',
                 display: 'flex', flexDirection: 'column', gap: 3,
+                opacity: deletingId === p.id ? 0.5 : 1,
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -438,6 +481,22 @@ export default function MetagenomicsHubPage() {
                 >
                   {p.marker_type}
                 </span>
+                {isAdmin && (
+                  <button
+                    onClick={e => handleDeleteProject(p, e)}
+                    disabled={deletingId === p.id}
+                    title="Excluir projeto"
+                    style={{
+                      marginLeft: 'auto', background: 'transparent', border: 'none',
+                      color: 'var(--text-3)', cursor: 'pointer', fontSize: 13,
+                      padding: '0 2px', lineHeight: 1,
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--red)' }}
+                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-3)' }}
+                  >
+                    {deletingId === p.id ? '…' : '🗑'}
+                  </button>
+                )}
               </div>
               <span style={{
                 fontSize: 11, color: 'var(--text-2)',
@@ -445,7 +504,7 @@ export default function MetagenomicsHubPage() {
               }}>
                 {p.name}
               </span>
-            </button>
+            </div>
           ))}
         </div>
 
@@ -526,17 +585,40 @@ export default function MetagenomicsHubPage() {
                 {/* Upload panel */}
                 {showUpload && (
                   <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
+                    {/* Mode toggle: folder vs files */}
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+                      {([['folder', '📁 Pasta'], ['files', '📄 Arquivos']] as const).map(([mode, label]) => (
+                        <button
+                          key={mode}
+                          onClick={() => { setUploadMode(mode); setBatchPairs([]); setBatchUnmatched([]) }}
+                          style={{
+                            ...sel,
+                            color: uploadMode === mode ? 'var(--cyan)' : 'var(--text-2)',
+                            background: uploadMode === mode ? 'rgba(0,212,255,0.12)' : 'var(--surface-2)',
+                            border: `1px solid ${uploadMode === mode ? 'rgba(0,212,255,0.3)' : 'var(--border)'}`,
+                          }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
                     <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 10 }}>
-                      Selecione todos os arquivos R1 e R2 juntos. Os pares são detectados automaticamente pelo padrão{' '}
+                      {uploadMode === 'folder'
+                        ? 'Selecione a pasta inteira com os FASTQs.'
+                        : 'Selecione todos os arquivos R1 e R2 juntos.'}{' '}
+                      Os pares são detectados automaticamente pelo padrão{' '}
                       <code style={{ color: 'var(--cyan)' }}>_R1_</code> / <code style={{ color: 'var(--cyan)' }}>_R2_</code>.
                     </div>
                     <input
+                      // key força recriação do input ao trocar de modo (webkitdirectory não muda em runtime)
+                      key={uploadMode}
                       ref={batchRef}
                       type="file"
                       accept=".fastq,.fastq.gz,.fq,.fq.gz"
                       multiple
                       onChange={e => handleBatchSelect(e.target.files)}
                       style={{ color: 'var(--text)', fontSize: 12, marginBottom: 10, display: 'block' }}
+                      {...(uploadMode === 'folder' ? ({ webkitdirectory: '', directory: '' } as any) : {})}
                     />
                     {batchPairs.length > 0 && (
                       <div style={{ fontSize: 11, color: 'var(--green)', marginBottom: 6 }}>
@@ -858,15 +940,24 @@ export default function MetagenomicsHubPage() {
                       >
                         {showRel ? '% Rel.' : '# Abs.'}
                       </button>
-                      <button onClick={handleExportCsv} disabled={!asvData} style={sel}>
+                      <button onClick={handleExportCsv} disabled={!asvData} style={sel} title="CSV do nível atual">
                         ⬇ CSV
                       </button>
                       <button
-                        onClick={handleExportFull}
+                        onClick={() => handleExportFull('csv')}
+                        disabled={exportingFull}
+                        style={{ ...sel, color: exportingFull ? 'var(--text-3)' : 'var(--text-2)' }}
+                        title="CSV completo (todos os níveis)"
+                      >
+                        {exportingFull ? '…' : '⬇ CSV completo'}
+                      </button>
+                      <button
+                        onClick={() => handleExportFull('xlsx')}
                         disabled={exportingFull}
                         style={{ ...sel, color: exportingFull ? 'var(--text-3)' : 'var(--green)' }}
+                        title="Planilha Excel (todos os níveis)"
                       >
-                        {exportingFull ? '…' : '⬇ Tabela Completa'}
+                        {exportingFull ? '…' : '⬇ Excel'}
                       </button>
                       <input
                         value={search}
@@ -936,7 +1027,7 @@ export default function MetagenomicsHubPage() {
                       )}
                       {!search && asvData.rows.length > 300 && (
                         <div style={{ padding: '8px 16px', fontSize: 11, color: 'var(--text-3)', textAlign: 'center', borderTop: '1px solid var(--border)' }}>
-                          Mostrando 300 de {asvData.rows.length} taxa. Use &ldquo;⬇ Tabela Completa&rdquo; para exportar tudo.
+                          Mostrando 300 de {asvData.rows.length} taxa. Use &ldquo;⬇ Excel&rdquo; ou &ldquo;⬇ CSV completo&rdquo; para exportar tudo.
                         </div>
                       )}
                     </div>

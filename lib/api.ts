@@ -110,6 +110,9 @@ export const api = {
                      body: JSON.stringify(body),
                    }),
 
+  deleteProject: (token: string, id: string) =>
+                   apiFetchWithToken<void>(`/api/v1/projects/${id}`, token, { method: 'DELETE' }),
+
   // Metagenomics module
   getMetagenomicsStatus: (projectId: string) =>
     apiFetch<MetagenomicsStatus>(`/api/v1/metagenomics/${projectId}/status`),
