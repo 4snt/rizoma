@@ -15,6 +15,13 @@ const NAV_ITEMS = [
   { href: '/docs',         label: 'API Docs',     icon: '◫' },
 ]
 
+// Fatia 1 (MVP LIMS) — API v2
+const MVP_NAV_ITEMS = [
+  { href: '/customers',   label: 'Clientes',    icon: '◇' },
+  { href: '/projects-v2', label: 'Projetos',    icon: '◆' },
+  { href: '/field',       label: 'Modo Campo',  icon: '⛰' },
+]
+
 const ADMIN_NAV_ITEMS = [
   { href: '/admin/users', label: 'Usuários', icon: '◉' },
 ]
@@ -273,6 +280,27 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
       <nav className="sidebar-nav">
         {NAV_ITEMS.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`nav-item${isActive(item.href) ? ' active' : ''}`}
+          >
+            <span className="nav-item-icon">{item.icon}</span>
+            <span className="nav-item-label">{item.label}</span>
+          </Link>
+        ))}
+
+        <div style={{
+          fontSize: 10,
+          textTransform: 'uppercase',
+          letterSpacing: '0.08em',
+          color: 'var(--text-3)',
+          padding: '10px 10px 4px',
+          fontWeight: 700,
+        }}>
+          LIMS
+        </div>
+        {MVP_NAV_ITEMS.map((item) => (
           <Link
             key={item.href}
             href={item.href}

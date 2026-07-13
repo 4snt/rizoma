@@ -4,10 +4,13 @@ import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import Sidebar from '@/components/ui/Sidebar'
 import { Footer } from '@/components/ui/Footer'
+import { OrgSwitcher } from '@/components/ui/OrgSwitcher'
+import { OutboxBadge } from '@/components/mvp/OutboxBadge'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const isLoginPage = pathname === '/login'
+  // /verify é público (destino do QR Code do laudo): sem shell, sem sessão.
+  const isBare = pathname === '/login' || pathname.startsWith('/verify')
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // Fecha sidebar ao navegar
@@ -19,7 +22,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => { document.body.style.overflow = '' }
   }, [sidebarOpen])
 
-  if (isLoginPage) return <>{children}</>
+  if (isBare) return <>{children}</>
 
   return (
     <div className="shell">
@@ -47,6 +50,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--cyan)' }}>
             🧬 Rizoma
           </span>
+        </div>
+
+        {/* Barra de contexto: organização ativa + estado da fila offline */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            gap: 12,
+            padding: '10px 24px 0',
+            flexWrap: 'wrap',
+          }}
+        >
+          <OutboxBadge />
+          <OrgSwitcher />
         </div>
 
         <main className="main-content" style={{ flex: 1 }}>

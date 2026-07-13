@@ -17,7 +17,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     authorized({ auth: session, request }) {
       const path = request.nextUrl.pathname
-      const isPublic = path.startsWith("/login") || path.startsWith("/api/auth")
+      // /verify é público: é o destino do QR Code impresso no PDF do laudo.
+      const isPublic =
+        path.startsWith("/login") ||
+        path.startsWith("/api/auth") ||
+        path.startsWith("/verify")
       if (!session && !isPublic) return false
       if (path.startsWith("/admin") && (session as any)?.role !== "admin") {
         return Response.redirect(new URL("/", request.url))
