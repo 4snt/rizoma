@@ -21,6 +21,21 @@ test('rota protegida /metagenomics exige autenticação', async ({ page }) => {
   await expect(page).toHaveURL(/\/login/)
 })
 
+// Cobre o middleware de proteção em várias rotas de uma vez.
+for (const rota of ['/projects', '/jobs', '/analysis/qualquer', '/admin/users']) {
+  test(`rota protegida ${rota} redireciona para /login sem sessão`, async ({ page }) => {
+    await page.goto(rota)
+    await expect(page).toHaveURL(/\/login/)
+  })
+}
+
+test('/admin sem sessão não vaza conteúdo administrativo', async ({ page }) => {
+  await page.goto('/admin/users')
+  await expect(page).toHaveURL(/\/login/)
+  // Garante que nada de "Convidar/Usuários" apareceu antes do redirect.
+  await expect(page.getByText(/convidar/i)).toHaveCount(0)
+})
+
 /**
  * Fluxo autenticado (cadastro → upload → DADA2 → tabela): depende de login
  * Google, então fica documentado e desabilitado por padrão. Para rodar,
