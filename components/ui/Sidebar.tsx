@@ -18,13 +18,17 @@ const NAV_ITEMS = [
 // LIMS (v2/lims, v2/inventory, v2/interop, v2/laboratory, v2/reports) —
 // ver epic 4snt/rizoma#5. Cresce conforme #7-#12 forem fechando.
 const LIMS_NAV_ITEMS = [
-  { href: '/customers', label: 'Clientes',   icon: '◇' },
+  // Rótulo "Pesquisadores" — "Cliente" (nome do tipo/rota, herdado do
+  // estudo de LIMS genérico) não faz sentido pro público acadêmico.
+  { href: '/customers', label: 'Pesquisadores', icon: '◇' },
   { href: '/inventory', label: 'Inventário', icon: '▢' },
   { href: '/interop',   label: 'Interop',    icon: '⇄' },
 ]
 
 const ADMIN_NAV_ITEMS = [
-  { href: '/admin/users', label: 'Usuários', icon: '◉' },
+  // /admin/users antigo aponta pro v1 morto (404, ver rizoma-backend#11) —
+  // /admin/members é a versão nova, contra v2/identity (listar + convidar).
+  { href: '/admin/members', label: 'Usuários', icon: '◉' },
 ]
 
 function fmtSeconds(s: number): string {

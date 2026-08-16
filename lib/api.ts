@@ -156,6 +156,17 @@ export const api = {
   // Público de propósito — sem token, é o destino do QR Code impresso.
   verifyReport:      (reportId: string, hash?: string) =>
                        apiFetch<VerifyResult>(`/api/v2/reports/${reportId}/verify${hash ? `?hash=${encodeURIComponent(hash)}` : ''}`),
+
+  // ── Identity: membros + convites (estudo LIMS §2.6 — gestão de usuários) ──
+  // Só o que v2/identity já expõe: listar membro, listar/criar convite.
+  // Revogar convite, trocar role, ativar/desativar ficam de fora — backend
+  // ainda não tem esses endpoints (ver rizoma-backend#11).
+  getMembers:        (token: string) => apiFetchWithToken<Member[]>('/api/v2/identity/members', token),
+  getInvitations:    (token: string) => apiFetchWithToken<Invitation[]>('/api/v2/identity/invitations', token),
+  createInvitation:  (token: string, body: CreateInvitationBody) =>
+                       apiFetchWithToken<Invitation>('/api/v2/identity/invitations', token, {
+                         method: 'POST', body: JSON.stringify(body),
+                       }),
   getJobs:           (token: string, projectId: string) =>
                        apiFetchWithToken<Job[]>(`/api/v2/jobs/?project_id=${projectId}`, token),
   getWorkerStatus:   () => apiFetch<WorkerStatus>('/api/v1/worker/status'),
@@ -693,6 +704,39 @@ export interface VerifyResult {
   signed_at: string | null
   organization: string | null
   detail: string | null
+}
+
+// ── Identity: membros + convites ────────────────────────────────────────
+
+// Papéis reais definidos em bio-platform/api/app/shared/context.py PERMISSIONS.
+export const ORG_ROLES = [
+  'org_admin', 'coordinator', 'tech_responsible', 'field_tech',
+  'lab_tech', 'bioinformatician', 'client', 'viewer',
+] as const
+export type OrgRole = typeof ORG_ROLES[number]
+
+export interface Member {
+  id: string
+  user_id: string
+  email: string
+  name: string
+  role: string
+  created_at: string
+}
+
+export interface Invitation {
+  id: string
+  organization_id: string
+  email: string
+  role: string
+  invited_by: string | null
+  invited_at: string
+  accepted_at: string | null
+}
+
+export interface CreateInvitationBody {
+  email: string
+  role: OrgRole
 }
 
 export interface UpdateProjectBody {
