@@ -226,24 +226,27 @@ export const api = {
   // Auth-required endpoints
   getMe:           (token: string) =>
                      apiFetchWithToken<UserProfile>('/api/v1/auth/me', token),
+  // v2/identity — rizoma-backend#11 (gap de admin fechado)
   getAdminUsers:   (token: string) =>
-                     apiFetchWithToken<AdminUser[]>('/api/v1/admin/users', token),
+                     apiFetchWithToken<AdminUser[]>('/api/v2/identity/members', token),
   getAdminInvites: (token: string) =>
-                     apiFetchWithToken<Invite[]>('/api/v1/admin/invites', token),
+                     apiFetchWithToken<Invite[]>('/api/v2/identity/invitations', token),
   createInvite:    (token: string, email: string, role: string) =>
-                     apiFetchWithToken<Invite>('/api/v1/admin/invites', token, {
+                     apiFetchWithToken<Invite>('/api/v2/identity/invitations', token, {
                        method: 'POST',
                        body: JSON.stringify({ email, role }),
                      }),
   deleteInvite:    (token: string, id: string) =>
-                     apiFetchWithToken<void>(`/api/v1/admin/invites/${id}`, token, { method: 'DELETE' }),
+                     apiFetchWithToken<void>(`/api/v2/identity/invitations/${id}`, token, { method: 'DELETE' }),
   updateUserRole:  (token: string, userId: string, role: string) =>
-                     apiFetchWithToken<void>(`/api/v1/admin/users/${userId}/role`, token, {
+                     apiFetchWithToken<void>(`/api/v2/identity/members/${userId}/role`, token, {
                        method: 'PATCH',
                        body: JSON.stringify({ role }),
                      }),
-  deactivateUser:  (token: string, userId: string) =>
-                     apiFetchWithToken<void>(`/api/v1/admin/users/${userId}/deactivate`, token, { method: 'PATCH' }),
+  // Não existe mais "desativar" (usuário é global, org é multi-tenant) —
+  // a ação real é remover a filiação com ESTA organização.
+  removeMember:    (token: string, userId: string) =>
+                     apiFetchWithToken<void>(`/api/v2/identity/members/${userId}`, token, { method: 'DELETE' }),
 
   // Religado pra v2 — gap do body.analyses fechado com a migration
   // 0006_project_analyses (coluna analyses em projects, v2/lims.ProjectCreate
@@ -908,21 +911,22 @@ export interface UserProfile {
 }
 
 export interface AdminUser {
-  id: string
+  id: string        // id da filiação (organization_members.id)
+  user_id: string    // id do usuário — usar este nas ações de role/remover
   email: string
   name: string
   role: string
-  is_active: boolean
-  avatar_url: string | null
-  last_login: string | null
+  created_at: string
 }
 
 export interface Invite {
   id: string
+  organization_id: string
   email: string
   role: string
+  invited_by: string | null
   invited_at: string
-  used_at: string | null
+  accepted_at: string | null
 }
 
 // ── Metagenomics ────────────────────────────────────────────────────────────

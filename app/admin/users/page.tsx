@@ -4,7 +4,12 @@ import { useSession } from "next-auth/react"
 import { useState, useEffect, useCallback } from "react"
 import { api, type AdminUser, type Invite } from "@/lib/api"
 
-const ROLES = ["researcher", "admin"] as const
+// Papéis reais validados pelo backend (app/shared/context.py::PERMISSIONS) —
+// não é mais researcher/admin, isso era vocabulário do v1 morto.
+const ROLES = [
+  "org_admin", "coordinator", "tech_responsible", "field_tech",
+  "lab_tech", "bioinformatician", "client", "viewer",
+] as const
 type Role = typeof ROLES[number]
 
 function formatDate(iso: string | null): string {
@@ -25,7 +30,7 @@ export default function AdminUsersPage() {
 
   // New invite form state
   const [inviteEmail, setInviteEmail] = useState("")
-  const [inviteRole,  setInviteRole]  = useState<Role>("researcher")
+  const [inviteRole,  setInviteRole]  = useState<Role>("viewer")
   const [submitting,  setSubmitting]  = useState(false)
   const [inviteError, setInviteError] = useState<string | null>(null)
 
@@ -76,7 +81,7 @@ export default function AdminUsersPage() {
     try {
       await api.createInvite(token, inviteEmail, inviteRole)
       setInviteEmail("")
-      setInviteRole("researcher")
+      setInviteRole("viewer")
       await loadData()
     } catch (e) {
       setInviteError(e instanceof Error ? e.message : "Erro ao criar convite")
@@ -97,23 +102,23 @@ export default function AdminUsersPage() {
   async function handleRoleChange(userId: string, role: string) {
     try {
       await api.updateUserRole(token, userId, role)
-      setUsers(prev => prev.map(u => u.id === userId ? { ...u, role } : u))
+      setUsers(prev => prev.map(u => u.user_id === userId ? { ...u, role } : u))
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Erro ao atualizar role")
+      alert(e instanceof Error ? e.message : "Erro ao atualizar papel")
     }
   }
 
-  async function handleToggleActive(user: AdminUser) {
-    if (!user.is_active) return // only deactivate for now; reactivate not in spec
+  async function handleRemoveMember(user: AdminUser) {
+    if (!confirm(`Remover ${user.name} desta organização?`)) return
     try {
-      await api.deactivateUser(token, user.id)
-      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, is_active: false } : u))
+      await api.removeMember(token, user.user_id)
+      setUsers(prev => prev.filter(u => u.user_id !== user.user_id))
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Erro ao desativar usuário")
+      alert(e instanceof Error ? e.message : "Erro ao remover membro")
     }
   }
 
-  const pendingInvites = invites.filter(i => !i.used_at)
+  const pendingInvites = invites.filter(i => !i.accepted_at)
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto" }}>
@@ -250,8 +255,7 @@ export default function AdminUsersPage() {
                 outline: "none",
               }}
             >
-              <option value="researcher">researcher</option>
-              <option value="admin">admin</option>
+              {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
             <button
               type="submit"
@@ -302,7 +306,7 @@ export default function AdminUsersPage() {
             {/* Table header */}
             <div style={{
               display: "grid",
-              gridTemplateColumns: "1fr 180px 110px 120px 100px",
+              gridTemplateColumns: "1fr 140px 150px 90px",
               gap: 12,
               padding: "8px 16px",
               fontSize: 11,
@@ -313,9 +317,8 @@ export default function AdminUsersPage() {
               borderBottom: "1px solid var(--border)",
             }}>
               <span>Nome / Email</span>
-              <span>Último login</span>
-              <span>Role</span>
-              <span>Status</span>
+              <span>Membro desde</span>
+              <span>Papel</span>
               <span></span>
             </div>
 
@@ -324,34 +327,23 @@ export default function AdminUsersPage() {
                 key={user.id}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1fr 180px 110px 120px 100px",
+                  gridTemplateColumns: "1fr 140px 150px 90px",
                   gap: 12,
                   padding: "12px 16px",
                   alignItems: "center",
                   borderBottom: idx < users.length - 1 ? "1px solid var(--border)" : "none",
-                  background: user.is_active ? "transparent" : "rgba(239,68,68,0.03)",
-                  opacity: user.is_active ? 1 : 0.7,
                 }}
               >
                 {/* Name + email */}
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  {user.avatar_url ? (
-                    <img
-                      src={user.avatar_url}
-                      alt={user.name}
-                      referrerPolicy="no-referrer"
-                      style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover", border: "1px solid var(--border)", flexShrink: 0 }}
-                    />
-                  ) : (
-                    <span style={{
-                      width: 28, height: 28, borderRadius: "50%",
-                      background: "var(--surface-2)", border: "1px solid var(--border)",
-                      display: "inline-flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 12, fontWeight: 700, color: "var(--text-3)", flexShrink: 0,
-                    }}>
-                      {user.name.charAt(0).toUpperCase()}
-                    </span>
-                  )}
+                  <span style={{
+                    width: 28, height: 28, borderRadius: "50%",
+                    background: "var(--surface-2)", border: "1px solid var(--border)",
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 12, fontWeight: 700, color: "var(--text-3)", flexShrink: 0,
+                  }}>
+                    {user.name.charAt(0).toUpperCase()}
+                  </span>
                   <div>
                     <div style={{ fontSize: 13, color: "var(--text)", fontWeight: 500 }}>
                       {user.name}
@@ -362,17 +354,18 @@ export default function AdminUsersPage() {
                   </div>
                 </div>
 
-                {/* Last login */}
+                {/* Membro desde */}
                 <div style={{ fontSize: 12, color: "var(--text-3)", fontFamily: "var(--mono)" }}>
-                  {formatDate(user.last_login)}
+                  {formatDate(user.created_at)}
                 </div>
 
                 {/* Role (inline select) */}
                 <div>
                   <select
                     value={user.role}
-                    onChange={e => handleRoleChange(user.id, e.target.value)}
-                    disabled={!user.is_active}
+                    onChange={e => handleRoleChange(user.user_id, e.target.value)}
+                    disabled={user.email === session?.userEmail}
+                    title={user.email === session?.userEmail ? "Peça a outro administrador pra mudar seu próprio papel" : undefined}
                     style={{
                       background: "var(--bg)",
                       border: "1px solid var(--border)",
@@ -380,28 +373,20 @@ export default function AdminUsersPage() {
                       color: "var(--text-2)",
                       fontSize: 12,
                       padding: "4px 8px",
-                      cursor: user.is_active ? "pointer" : "not-allowed",
+                      cursor: user.email === session?.userEmail ? "not-allowed" : "pointer",
                       outline: "none",
                     }}
                   >
-                    <option value="researcher">researcher</option>
-                    <option value="admin">admin</option>
+                    {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                 </div>
 
-                {/* Status badge */}
+                {/* Remove button */}
                 <div>
-                  <span className={`badge badge-${user.is_active ? "green" : "red"}`}>
-                    {user.is_active ? "Ativo" : "Inativo"}
-                  </span>
-                </div>
-
-                {/* Deactivate button */}
-                <div>
-                  {user.is_active && (
+                  {user.email !== session?.userEmail && (
                     <button
-                      onClick={() => handleToggleActive(user)}
-                      title="Desativar usuário"
+                      onClick={() => handleRemoveMember(user)}
+                      title="Remover desta organização"
                       style={{
                         background: "transparent",
                         border: "1px solid rgba(239,68,68,0.3)",
@@ -415,7 +400,7 @@ export default function AdminUsersPage() {
                       onMouseEnter={e => (e.currentTarget.style.background = "rgba(239,68,68,0.1)")}
                       onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                     >
-                      Desativar
+                      Remover
                     </button>
                   )}
                 </div>
