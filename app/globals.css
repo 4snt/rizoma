@@ -6,7 +6,7 @@
   --radius:    12px;
   --sidebar-w: 240px;
   --mono:      'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
-  
+
   /* Shared colors */
   --cyan:      #00d4ff;
   --green:     #10d48a;
@@ -14,12 +14,28 @@
   --red:       #ef4444;
   --purple:    #a855f7;
   --blue:      #3b82f6;
+
+  /* ── liquid-material-shell: shape scale ────────────────────────────
+     Varied radius carries hierarchy — don't collapse to one value.
+     Ver .claude/skills/liquid-material-shell */
+  --shape-xs:   10px;  /* small inline controls */
+  --shape-sm:   14px;  /* inputs, compact chips */
+  --shape-md:   16px;  /* cards, standard content surfaces */
+  --shape-lg:   24px;  /* floating shell chrome: sidebar, mobile topbar */
+  --shape-xl:   28px;  /* large hero/stage surfaces */
+  --shape-full: 999px; /* pills: nav links, buttons, badges */
+
+  /* ── liquid-material-shell: glass recipe (shell chrome only) ─────── */
+  --glass-blur:   blur(20px) saturate(1.3);
+  --shadow-soft:  0 10px 30px rgba(0, 0, 0, 0.18);
+  --shadow-glass: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 16px 44px rgba(0, 0, 0, 0.28);
 }
 
 [data-theme='dark'] {
   --bg:        #050d1a;
   --surface:   #0a1628;
   --surface-2: #0f1e38;
+  --surface-glass: rgba(10, 22, 40, 0.72);
   --border:    rgba(0, 212, 255, 0.12);
   --border-h:  rgba(0, 212, 255, 0.35);
   --cyan-dim:  rgba(0, 212, 255, 0.08);
@@ -32,6 +48,7 @@
   --bg:        #f8fafc;
   --surface:   #ffffff;
   --surface-2: #f1f5f9;
+  --surface-glass: rgba(255, 255, 255, 0.72);
   --border:    rgba(0, 0, 0, 0.08);
   --border-h:  rgba(0, 212, 255, 0.2);
   --cyan-dim:  rgba(0, 212, 255, 0.05);
@@ -76,7 +93,7 @@ body {
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  border-radius: 999px;
+  border-radius: var(--shape-full);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.03em;
@@ -94,7 +111,7 @@ body {
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--shape-md);
   transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 
@@ -143,15 +160,25 @@ body {
   display: flex;
   height: 100svh;
   overflow: hidden;
+  gap: 12px;
+  padding: 12px;
+  box-sizing: border-box;
 }
 
+/* Sidebar floats (liquid-material-shell): margin from viewport edge via
+   .shell's padding/gap above, glass background, --shape-lg radius, border
+   on all sides — not flush/edge-to-edge like before. */
 .sidebar {
   width: var(--sidebar-w);
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  background: var(--surface);
-  border-right: 1px solid var(--border);
+  background: var(--surface-glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border);
+  border-radius: var(--shape-lg);
+  box-shadow: var(--shadow-glass);
   overflow-y: auto;
   transition: transform 250ms ease;
 }
@@ -160,21 +187,27 @@ body {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 28px 32px;
+  padding: 16px 20px;
 }
 
-/* Mobile top bar (hamburger) */
+/* Mobile top bar (hamburger) — same floating-glass treatment as the sidebar
+   when it takes over as the nav chrome on small screens. */
 .mobile-topbar {
   display: none;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  padding: 10px 16px;
+  background: var(--surface-glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border);
+  border-radius: var(--shape-lg);
+  box-shadow: var(--shadow-glass);
   position: sticky;
   top: 0;
   z-index: 10;
   flex-shrink: 0;
+  margin-bottom: 12px;
 }
 
 .hamburger-btn {
@@ -253,27 +286,27 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 9px 10px;
-  border-radius: 8px;
+  padding: 9px 14px;
+  border-radius: var(--shape-full);
   color: var(--text-2);
   text-decoration: none;
   font-size: 13.5px;
   font-weight: 500;
   transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
-  border-left: 2px solid transparent;
+  border: 1px solid transparent;
   position: relative;
 }
 
 .nav-item:hover {
   background: var(--surface-2);
   color: var(--text);
-  border-left-color: var(--border-h);
+  border-color: var(--border-h);
 }
 
 .nav-item.active {
   background: var(--cyan-dim);
   color: var(--cyan);
-  border-left-color: var(--cyan);
+  border-color: rgba(0, 212, 255, 0.3);
 }
 
 .nav-item-icon {
@@ -755,7 +788,9 @@ body {
 @media (max-width: 767px) {
   html, body { overflow-x: hidden; }
 
-  /* Sidebar vira overlay fixo */
+  /* Sidebar vira overlay fixo — drawer transiente, não chrome persistente,
+     por isso fica flush na borda esquerda (hinge) mas mantém o glass e
+     arredonda só o lado que "flutua" sobre o conteúdo. */
   .sidebar {
     position: fixed;
     top: 0;
@@ -764,7 +799,9 @@ body {
     width: 260px;
     z-index: 100;
     transform: translateX(-260px);
-    border-right: 1px solid var(--border-h);
+    border-radius: 0 var(--shape-lg) var(--shape-lg) 0;
+    border: 1px solid var(--border-h);
+    border-left: none;
     box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
   }
 
@@ -780,8 +817,12 @@ body {
   /* Botão fechar sidebar visível em mobile */
   .sidebar-close-btn { display: block !important; }
 
-  /* Conteúdo principal sem sidebar */
-  .shell { flex-direction: column; }
+  /* Conteúdo principal sem sidebar — sidebar é overlay (position: fixed),
+     fora do fluxo, então o padding do .shell (pensado pro gap sidebar↔main
+     do desktop) não faz sentido aqui. */
+  .shell { flex-direction: column; padding: 0; gap: 0; }
+
+  .mobile-topbar { border-radius: 0 0 var(--shape-lg) var(--shape-lg); margin-bottom: 0; }
 
   .main-content {
     padding: 16px;
