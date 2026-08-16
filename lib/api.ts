@@ -245,13 +245,11 @@ export const api = {
   deactivateUser:  (token: string, userId: string) =>
                      apiFetchWithToken<void>(`/api/v1/admin/users/${userId}/deactivate`, token, { method: 'PATCH' }),
 
-  // Fica em /api/v1 de propósito (404 real, sem religar): body.analyses (catálogo
-  // de análise escolhido na criação) não existe em v2/lims.ProjectCreate — Pydantic
-  // ignora campo desconhecido, então religar direto faria a seleção sumir
-  // silenciosa. Decisão registrada em rizoma-backend#10: só religar quando o
-  // gap for fechado (nova coluna ou decisão de descartar o campo de vez).
+  // Religado pra v2 — gap do body.analyses fechado com a migration
+  // 0006_project_analyses (coluna analyses em projects, v2/lims.ProjectCreate
+  // já aceita e persiste). Ver rizoma-backend#10 (comment).
   createProject: (token: string, body: CreateProjectBody) =>
-                   apiFetchWithToken<{ id: string }>('/api/v1/projects/', token, {
+                   apiFetchWithToken<Project>('/api/v2/lims/projects', token, {
                      method: 'POST',
                      body: JSON.stringify(body),
                    }),
@@ -364,6 +362,9 @@ export interface CreateProjectBody {
   marker_type: '16S' | 'ITS'
   analyses: AnalysisConfig[]
   dada2_params?: Dada2Params
+  // v2/lims aceita vincular na criação — nenhum form ainda expõe essa opção
+  // (ver 4snt/rizoma#18/nomenclatura), campo só disponível no tipo por ora.
+  customer_id?: string | null
 }
 
 // ── LIMS: Amostras + cadeia de custódia ─────────────────────────────────────
