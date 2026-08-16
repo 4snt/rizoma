@@ -26,6 +26,10 @@ const LIMS_NAV_ITEMS = [
 ]
 
 const ADMIN_NAV_ITEMS = [
+  // "Novo Projeto" tinha saído do menu num commit anterior (a página
+  // /admin/projects/new continuava existindo e funcionando, só ficou sem
+  // atalho). Restaurado junto da correção do bug isAdmin (ver auth.ts).
+  { href: '/admin/projects/new', label: 'Novo Projeto', icon: '⊕' },
   // /admin/users antigo aponta pro v1 morto (404, ver rizoma-backend#11) —
   // /admin/members é a versão nova, contra v2/identity (listar + convidar).
   { href: '/admin/members', label: 'Usuários', icon: '◉' },
@@ -206,7 +210,7 @@ function UserPanel() {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span className={`badge badge-${role === 'admin' ? 'amber' : 'cyan'}`} style={{ fontSize: 10 }}>
+        <span className={`badge badge-${role === 'org_admin' ? 'amber' : 'cyan'}`} style={{ fontSize: 10 }}>
           {role}
         </span>
         <button
@@ -246,7 +250,9 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname()
   const { data: session } = useSession()
   const isActive = (href: string) => href === '/' ? pathname === '/' : pathname.startsWith(href)
-  const isAdmin  = session?.role === 'admin'
+  // Papel real do backend é "org_admin" (app/shared/context.py PERMISSIONS) —
+  // nunca "admin" sozinho. Comparar com "admin" nunca bate pra ninguém real.
+  const isAdmin  = session?.role === 'org_admin'
 
   return (
     <aside className={`sidebar${isOpen ? ' sidebar-open' : ''}`}>

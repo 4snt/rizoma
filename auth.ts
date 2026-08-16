@@ -22,7 +22,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       // expõe /api/v2/reports/{id}/verify sem auth, de propósito).
       const isPublic = path.startsWith("/login") || path.startsWith("/api/auth") || path.startsWith("/auth/popup-callback") || path.startsWith("/auth/popup-start") || path.startsWith("/verify")
       if (!session && !isPublic) return false
-      if (path.startsWith("/admin") && (session as any)?.role !== "admin") {
+      // Papel real do backend é "org_admin" (app/shared/context.py
+      // PERMISSIONS), nunca "admin" sozinho — comparar com "admin" nunca
+      // batia pra ninguém real, /admin/* ficava inacessível até pra quem
+      // era org_admin de verdade.
+      if (path.startsWith("/admin") && (session as any)?.role !== "org_admin") {
         return Response.redirect(new URL("/", request.url))
       }
       return true

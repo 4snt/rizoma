@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { api } from '@/lib/api'
+import { api, type OrgRole, PROJECT_WRITE_ROLES } from '@/lib/api'
 import { ANALYSES_CATALOG, type AnalysisDefinition } from '@/lib/analyses-catalog'
 
 type MarkerType = '16S' | 'ITS'
@@ -227,7 +227,7 @@ export default function NewProjectPage() {
     }
   }
 
-  if (session?.role !== 'admin') {
+  if (!session?.role || !PROJECT_WRITE_ROLES.includes(session.role as OrgRole)) {
     return (
       <div style={{ padding: 40, color: 'var(--red)' }}>
         Acesso negado. Esta página é restrita a administradores.

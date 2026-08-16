@@ -57,7 +57,7 @@ export default function AdminUsersPage() {
       <div style={{ padding: 40, color: "var(--text-2)" }}>Carregando...</div>
     )
   }
-  if (session?.role !== "admin") {
+  if (session?.role !== "org_admin") {
     return (
       <div style={{ padding: 40, color: "var(--red)" }}>
         Acesso negado. Esta página é restrita a administradores.
@@ -167,7 +167,7 @@ export default function AdminUsersPage() {
                   <span style={{ color: "var(--text)", fontSize: 13, fontFamily: "var(--mono)" }}>
                     {invite.email}
                   </span>
-                  <span className={`badge badge-${invite.role === "admin" ? "amber" : "cyan"}`}>
+                  <span className={`badge badge-${invite.role === "org_admin" ? "amber" : "cyan"}`}>
                     {invite.role}
                   </span>
                   <span style={{ fontSize: 11, color: "var(--text-3)" }}>

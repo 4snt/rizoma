@@ -716,6 +716,11 @@ export const ORG_ROLES = [
 ] as const
 export type OrgRole = typeof ORG_ROLES[number]
 
+// Espelha PERMISSIONS["project:write"] em app/shared/context.py — quem pode
+// criar projeto de verdade no backend. Centralizado aqui pra não repetir o
+// erro de comparar com um role literal errado (era "admin", nunca batia).
+export const PROJECT_WRITE_ROLES: OrgRole[] = ['org_admin', 'coordinator']
+
 export interface Member {
   id: string
   user_id: string

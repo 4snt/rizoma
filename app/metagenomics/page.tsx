@@ -12,6 +12,8 @@ import {
   type TaxLevel,
   type AsvFullRow,
   type Dada2Params,
+  type OrgRole,
+  PROJECT_WRITE_ROLES,
 } from '@/lib/api'
 import { ANALYSES_CATALOG, type AnalysisDefinition } from '@/lib/analyses-catalog'
 import { autoPair, dada2Defaults, csvDownload, type BatchPair } from '@/lib/metagenomics-utils'
@@ -60,7 +62,8 @@ const sel: React.CSSProperties = {
 export default function MetagenomicsHubPage() {
   const { data: session } = useSession()
   const token = (session as any)?.accessToken as string | undefined
-  const isAdmin = (session as any)?.role === 'admin'
+  const role = (session as any)?.role as OrgRole | undefined
+  const isAdmin = !!role && PROJECT_WRITE_ROLES.includes(role)
 
   // Navigation
   const [selectedId, setSelectedId] = useState<string | null>(null)

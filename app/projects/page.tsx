@@ -3,7 +3,7 @@
 import useSWR from 'swr'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
-import { api, type Project } from '@/lib/api'
+import { api, type Project, type OrgRole, PROJECT_WRITE_ROLES } from '@/lib/api'
 
 
 function markerBadge(marker: string) {
@@ -102,7 +102,7 @@ export default function ProjectsPage() {
     token ? ['projects', token] : null,
     () => api.getProjects(token!),
   )
-  const isAdmin = session?.role === 'admin'
+  const isAdmin = !!session?.role && PROJECT_WRITE_ROLES.includes(session.role as OrgRole)
 
   return (
     <>
