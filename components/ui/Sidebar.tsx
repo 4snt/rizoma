@@ -20,6 +20,7 @@ const NAV_ITEMS = [
 const LIMS_NAV_ITEMS = [
   { href: '/customers', label: 'Clientes',   icon: '◇' },
   { href: '/inventory', label: 'Inventário', icon: '▢' },
+  { href: '/interop',   label: 'Interop',    icon: '⇄' },
 ]
 
 const ADMIN_NAV_ITEMS = [

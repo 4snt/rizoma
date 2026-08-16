@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import useSWR from 'swr'
@@ -10,6 +10,7 @@ import {
   type LimsSample,
   type LimsSampleMatrix,
   type LimsSampleStatus,
+  type SampleImportResult,
 } from '@/lib/api'
 
 const MATRIX_OPTIONS: LimsSampleMatrix[] = [
@@ -75,6 +76,46 @@ export default function ProjectSamplesPage() {
     }
   }
 
+  // Import/export CSV (4snt/rizoma#10 — v2/interop)
+  const importRef = useRef<HTMLInputElement>(null)
+  const [importResult, setImportResult] = useState<SampleImportResult | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [exporting, setExporting] = useState(false)
+
+  async function handleExport() {
+    if (!token || !projectId) return
+    setExporting(true)
+    try {
+      const blob = await api.exportSamplesCsv(token, projectId)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `samples-${project?.code ?? projectId}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Erro ao exportar CSV.')
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  async function handleImport(file: File) {
+    if (!token || !projectId) return
+    setImporting(true)
+    setImportResult(null)
+    try {
+      const result = await api.importSamplesCsv(token, projectId, file)
+      setImportResult(result)
+      await mutate()
+    } catch (e) {
+      setImportResult({ created: 0, errors: [{ row: 0, code: null, error: e instanceof Error ? e.message : 'Erro ao importar CSV.' }] })
+    } finally {
+      setImporting(false)
+      if (importRef.current) importRef.current.value = ''
+    }
+  }
+
   return (
     <>
       <div className="breadcrumb">
@@ -90,17 +131,65 @@ export default function ProjectSamplesPage() {
           <h1 className="page-title">Amostras</h1>
           <p className="page-subtitle">Cadeia de custódia · {project?.name ?? '...'}</p>
         </div>
-        <button
-          onClick={() => setShowCreate(v => !v)}
-          style={{
-            background: 'var(--cyan)', color: '#050d1a', border: 'none',
-            borderRadius: 'var(--shape-full)', fontWeight: 700, fontSize: 13,
-            padding: '8px 16px', cursor: 'pointer', flexShrink: 0, marginTop: 4,
-          }}
-        >
-          {showCreate ? '✕ Fechar' : '+ Registrar Amostra'}
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0, marginTop: 4 }}>
+          <button
+            onClick={handleExport}
+            disabled={exporting || !samples?.length}
+            style={{
+              background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-2)',
+              borderRadius: 'var(--shape-full)', fontWeight: 600, fontSize: 13,
+              padding: '8px 16px', cursor: !exporting && samples?.length ? 'pointer' : 'not-allowed',
+            }}
+          >
+            {exporting ? 'Exportando...' : '↓ Exportar CSV'}
+          </button>
+          <input
+            ref={importRef} type="file" accept=".csv" style={{ display: 'none' }}
+            onChange={e => e.target.files?.[0] && handleImport(e.target.files[0])}
+          />
+          <button
+            onClick={() => importRef.current?.click()}
+            disabled={importing}
+            style={{
+              background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.25)', color: 'var(--purple)',
+              borderRadius: 'var(--shape-full)', fontWeight: 600, fontSize: 13,
+              padding: '8px 16px', cursor: importing ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {importing ? 'Importando...' : '↑ Importar CSV'}
+          </button>
+          <button
+            onClick={() => setShowCreate(v => !v)}
+            style={{
+              background: 'var(--cyan)', color: '#050d1a', border: 'none',
+              borderRadius: 'var(--shape-full)', fontWeight: 700, fontSize: 13,
+              padding: '8px 16px', cursor: 'pointer',
+            }}
+          >
+            {showCreate ? '✕ Fechar' : '+ Registrar Amostra'}
+          </button>
+        </div>
       </div>
+
+      {importResult && (
+        <div className="card" style={{
+          padding: '12px 16px', marginBottom: 16,
+          borderColor: importResult.errors.length ? 'rgba(245,158,11,0.3)' : 'rgba(16,212,138,0.3)',
+        }}>
+          <div style={{ fontSize: 13, color: importResult.errors.length ? 'var(--amber)' : 'var(--green)', fontWeight: 600 }}>
+            {importResult.created} amostra(s) importada(s){importResult.errors.length ? `, ${importResult.errors.length} erro(s)` : ''}
+          </div>
+          {importResult.errors.length > 0 && (
+            <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {importResult.errors.map((err, i) => (
+                <span key={i} style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
+                  linha {err.row}{err.code ? ` (${err.code})` : ''}: {err.error}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {showCreate && (
         <div className="card" style={{ padding: 20, marginBottom: 20 }}>

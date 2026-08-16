@@ -95,6 +95,33 @@ export const api = {
                        }),
   getInventoryAlerts: (token: string, withinDays = 30) =>
                        apiFetchWithToken<InventoryAlerts>(`/api/v2/inventory/alerts?within_days=${withinDays}`, token),
+
+  // ── Interop: webhooks + import/export de amostras (4snt/rizoma#10) ──────
+  getWebhooks:       (token: string) => apiFetchWithToken<WebhookSubscription[]>('/api/v2/interop/webhooks', token),
+  createWebhook:     (token: string, body: CreateWebhookBody) =>
+                       apiFetchWithToken<WebhookSubscriptionCreated>('/api/v2/interop/webhooks', token, {
+                         method: 'POST', body: JSON.stringify(body),
+                       }),
+  deleteWebhook:     (token: string, id: string) =>
+                       apiFetchWithToken<void>(`/api/v2/interop/webhooks/${id}`, token, { method: 'DELETE' }),
+  exportSamplesCsv:  async (token: string, projectId: string): Promise<Blob> => {
+                       const res = await fetch(`${API_URL}/api/v2/interop/projects/${projectId}/samples/export`, {
+                         headers: { Authorization: `Bearer ${token}` },
+                       })
+                       if (!res.ok) throw new Error(`API error ${res.status}: export CSV`)
+                       return res.blob()
+                     },
+  importSamplesCsv:  async (token: string, projectId: string, file: File): Promise<SampleImportResult> => {
+                       const form = new FormData()
+                       form.append('file', file)
+                       const res = await fetch(`${API_URL}/api/v2/interop/projects/${projectId}/samples/import`, {
+                         method: 'POST',
+                         headers: { Authorization: `Bearer ${token}` },
+                         body: form,
+                       })
+                       if (!res.ok) throw new Error(`API error ${res.status}: import CSV`)
+                       return res.json()
+                     },
   getJobs:           (token: string, projectId: string) =>
                        apiFetchWithToken<Job[]>(`/api/v2/jobs/?project_id=${projectId}`, token),
   getWorkerStatus:   () => apiFetch<WorkerStatus>('/api/v1/worker/status'),
@@ -504,6 +531,41 @@ export interface CalibrationDueAlert {
 export interface InventoryAlerts {
   expiring_lots: ExpiringLotAlert[]
   calibrations_due: CalibrationDueAlert[]
+}
+
+// ── Interop: webhooks + import/export ───────────────────────────────────────
+
+export const WEBHOOK_EVENT_TYPES = ['job.completed', 'job.failed', 'sample.created'] as const
+export type WebhookEventType = typeof WEBHOOK_EVENT_TYPES[number]
+
+export interface WebhookSubscription {
+  id: string
+  organization_id: string
+  url: string
+  event_types: string[]
+  is_active: boolean
+  created_by: string | null
+  created_at: string
+}
+
+export interface WebhookSubscriptionCreated extends WebhookSubscription {
+  secret: string // só vem uma vez, na criação — backend nunca devolve de novo
+}
+
+export interface CreateWebhookBody {
+  url: string
+  event_types: string[]
+}
+
+export interface SampleImportRowError {
+  row: number
+  code: string | null
+  error: string
+}
+
+export interface SampleImportResult {
+  created: number
+  errors: SampleImportRowError[]
 }
 
 export interface UpdateProjectBody {
