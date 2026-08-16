@@ -141,6 +141,21 @@ export const api = {
                        apiFetchWithToken<LabResult>(`/api/v2/lab/results/${resultId}/review`, token, {
                          method: 'POST', body: JSON.stringify(body),
                        }),
+
+  // ── Laudos (reports) (4snt/rizoma#12) ───────────────────────────────────
+  getReports:        (token: string, projectId: string) =>
+                       apiFetchWithToken<ReportListItem[]>(`/api/v2/projects/${projectId}/reports`, token),
+  createReport:      (token: string, projectId: string, body: CreateReportBody) =>
+                       apiFetchWithToken<Report>(`/api/v2/projects/${projectId}/reports`, token, {
+                         method: 'POST', body: JSON.stringify(body),
+                       }),
+  getReport:         (token: string, reportId: string) =>
+                       apiFetchWithToken<Report>(`/api/v2/reports/${reportId}`, token),
+  signReport:        (token: string, reportId: string) =>
+                       apiFetchWithToken<Report>(`/api/v2/reports/${reportId}/sign`, token, { method: 'POST' }),
+  // Público de propósito — sem token, é o destino do QR Code impresso.
+  verifyReport:      (reportId: string, hash?: string) =>
+                       apiFetch<VerifyResult>(`/api/v2/reports/${reportId}/verify${hash ? `?hash=${encodeURIComponent(hash)}` : ''}`),
   getJobs:           (token: string, projectId: string) =>
                        apiFetchWithToken<Job[]>(`/api/v2/jobs/?project_id=${projectId}`, token),
   getWorkerStatus:   () => apiFetch<WorkerStatus>('/api/v1/worker/status'),
@@ -642,6 +657,42 @@ export interface LabResult {
   created_at: string
   current: ResultVersion
   history: ResultVersion[]
+}
+
+// ── Laudos (reports) ─────────────────────────────────────────────────────
+
+export interface CreateReportBody {
+  title: string
+  code?: string | null
+}
+
+export interface ReportListItem {
+  id: string
+  project_id: string
+  code: string
+  version: number
+  title: string
+  status: string
+  sha256: string | null
+  signed_at: string | null
+  created_at: string
+}
+
+export interface Report extends ReportListItem {
+  storage_key: string | null
+  signed_by: string | null
+  content: Record<string, unknown> | null
+  download_url: string | null
+}
+
+export interface VerifyResult {
+  valid: boolean
+  code: string | null
+  version: number | null
+  project: string | null
+  signed_at: string | null
+  organization: string | null
+  detail: string | null
 }
 
 export interface UpdateProjectBody {

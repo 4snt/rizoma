@@ -8,6 +8,9 @@ import { Footer } from '@/components/ui/Footer'
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const isLoginPage = pathname === '/login'
+  // /verify é o destino público do QR Code do laudo — sem sidebar/nav
+  // interna, quem escaneia não é usuário do Rizoma.
+  const isPublicPage = isLoginPage || pathname?.startsWith('/verify')
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // Fecha sidebar ao navegar
@@ -19,7 +22,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => { document.body.style.overflow = '' }
   }, [sidebarOpen])
 
-  if (isLoginPage) return <>{children}</>
+  if (isPublicPage) return <>{children}</>
 
   return (
     <div className="shell">

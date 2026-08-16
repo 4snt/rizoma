@@ -386,6 +386,23 @@ export default function ProjectDetailPage() {
               Cadeia de custódia →
             </span>
           </Link>
+          <Link
+            href={`/projects/${id}/reports`}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '8px 18px',
+              background: 'rgba(168,85,247,0.08)',
+              border: '1px solid rgba(168,85,247,0.25)',
+              borderRadius: 'var(--shape-full)', color: 'var(--purple)',
+              fontSize: 13, fontWeight: 600, textDecoration: 'none',
+              transition: 'all 0.15s',
+            }}
+          >
+            📄 Laudos
+            <span style={{ fontSize: 10, color: 'var(--text-3)', fontWeight: 400 }}>
+              Emitir · assinar →
+            </span>
+          </Link>
         </div>
       )}
 

@@ -17,7 +17,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     authorized({ auth: session, request }) {
       const path = request.nextUrl.pathname
-      const isPublic = path.startsWith("/login") || path.startsWith("/api/auth") || path.startsWith("/auth/popup-callback") || path.startsWith("/auth/popup-start")
+      // /verify é o destino do QR Code impresso no laudo — quem escaneia não
+      // tem conta nenhuma no Rizoma, precisa ficar público (backend também
+      // expõe /api/v2/reports/{id}/verify sem auth, de propósito).
+      const isPublic = path.startsWith("/login") || path.startsWith("/api/auth") || path.startsWith("/auth/popup-callback") || path.startsWith("/auth/popup-start") || path.startsWith("/verify")
       if (!session && !isPublic) return false
       if (path.startsWith("/admin") && (session as any)?.role !== "admin") {
         return Response.redirect(new URL("/", request.url))
