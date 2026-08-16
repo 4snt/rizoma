@@ -1,13 +1,18 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { useSession } from 'next-auth/react'
 import { connectJobStatusSocket } from '@/lib/websocket'
 
+// Vocabulário real de pipeline_jobs.status (ver CHECK constraint na migration).
 const STATUS_CONFIG: Record<string, { cls: string; label: string }> = {
-  queued:  { cls: 'badge-amber',  label: 'queued'  },
-  running: { cls: 'badge-cyan',   label: 'running' },
-  done:    { cls: 'badge-green',  label: 'done'    },
-  failed:  { cls: 'badge-red',    label: 'failed'  },
+  queued:          { cls: 'badge-amber', label: 'queued'          },
+  running:         { cls: 'badge-cyan',  label: 'running'         },
+  retry_scheduled: { cls: 'badge-amber', label: 'retry scheduled' },
+  completed:       { cls: 'badge-green', label: 'completed'       },
+  failed:          { cls: 'badge-red',   label: 'failed'          },
+  cancelled:       { cls: '',            label: 'cancelled'       },
+  dead_letter:     { cls: 'badge-red',   label: 'dead letter'     },
 }
 
 interface JobEntry {
@@ -33,14 +38,17 @@ function formatTime(d: Date): string {
 }
 
 export default function JobsPage() {
+  const { data: session } = useSession()
   const [jobs, setJobs] = useState<JobEntry[]>([])
   const [connected, setConnected] = useState(false)
   const [totalReceived, setTotalReceived] = useState(0)
   const seenRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
+    if (!session?.accessToken) return
+
     setConnected(true)
-    const disconnect = connectJobStatusSocket((jobId, status) => {
+    const disconnect = connectJobStatusSocket(session.accessToken, (jobId, status) => {
       const isNew = !seenRef.current.has(jobId)
       seenRef.current.add(jobId)
 
@@ -69,7 +77,7 @@ export default function JobsPage() {
       disconnect()
       setConnected(false)
     }
-  }, [])
+  }, [session?.accessToken])
 
   const runningCount = jobs.filter((j) => j.status === 'running').length
 

@@ -1,8 +1,7 @@
 'use client'
 
-import { signIn } from "next-auth/react"
 import { useSearchParams } from "next/navigation"
-import { Suspense } from "react"
+import { Suspense, useEffect, useRef } from "react"
 import Image from "next/image"
 
 function ErrorMessage({ error }: { error: string | null }) {
@@ -33,11 +32,33 @@ function ErrorMessage({ error }: { error: string | null }) {
 }
 
 function LoginContent() {
-  const params = useSearchParams()
-  const error  = params.get("error")
+  const params    = useSearchParams()
+  const error     = params.get("error")
+  const popupRef  = useRef<Window | null>(null)
+
+  // Escuta o aviso do popup de login (ver app/auth/popup-callback)
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return
+      if (event.data?.type !== "rizoma-auth-complete") return
+      window.location.href = "/"
+    }
+    window.addEventListener("message", onMessage)
+    return () => window.removeEventListener("message", onMessage)
+  }, [])
 
   const handleSignIn = () => {
-    signIn("google", { callbackUrl: "/" })
+    const width  = 500
+    const height = 650
+    const left   = window.screenX + (window.outerWidth - width) / 2
+    const top    = window.screenY + (window.outerHeight - height) / 2
+    const callbackUrl = encodeURIComponent(`${window.location.origin}/auth/popup-callback`)
+
+    popupRef.current = window.open(
+      `/auth/popup-start?callbackUrl=${callbackUrl}`,
+      "rizoma-login",
+      `width=${width},height=${height},left=${left},top=${top}`
+    )
   }
 
   return (
