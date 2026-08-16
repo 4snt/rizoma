@@ -17,7 +17,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     authorized({ auth: session, request }) {
       const path = request.nextUrl.pathname
-      const isPublic = path.startsWith("/login") || path.startsWith("/api/auth")
+      const isPublic = path.startsWith("/login") || path.startsWith("/api/auth") || path.startsWith("/auth/popup-callback") || path.startsWith("/auth/popup-start")
       if (!session && !isPublic) return false
       if (path.startsWith("/admin") && (session as any)?.role !== "admin") {
         return Response.redirect(new URL("/", request.url))
@@ -25,11 +25,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return true
     },
     async signIn({ profile }) {
-      return !!profile?.email?.endsWith(ALLOWED_DOMAIN)
+      return !!profile?.email?.toLowerCase().endsWith(ALLOWED_DOMAIN.toLowerCase())
     },
     async jwt({ token, account }) {
       if (account?.access_token) {
-        const res = await fetch(`${API}/api/v1/auth/google`, {
+        // /api/v1/auth/* nunca é montado pelo backend (fala com schema antigo,
+        // ver app/main.py) — o endpoint real é /api/v2/identity/auth/google,
+        // que devolve {access_token, user: {...}, organizations: [...]}.
+        const res = await fetch(`${API}/api/v2/identity/auth/google`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ access_token: account.access_token }),
@@ -37,9 +40,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (res.ok) {
           const data = await res.json()
           token.accessToken = data.access_token
-          token.role        = data.role
-          token.userEmail   = data.email
-          token.userName    = data.name
+          token.role        = data.organizations?.[0]?.role ?? "viewer"
+          token.userEmail   = data.user.email
+          token.userName    = data.user.name
         } else {
           token.error = res.status === 403 ? "NotInvited" : "AuthError"
         }
