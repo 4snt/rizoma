@@ -122,6 +122,25 @@ export const api = {
                        if (!res.ok) throw new Error(`API error ${res.status}: import CSV`)
                        return res.json()
                      },
+
+  // ── Laboratório: resultados (4snt/rizoma#11) ────────────────────────────
+  // Prefixo próprio (/api/v2/lab), diferente dos outros módulos v2/<nome>.
+  createResult:      (token: string, sampleId: string, body: CreateResultBody) =>
+                       apiFetchWithToken<LabResult>(`/api/v2/lab/samples/${sampleId}/results`, token, {
+                         method: 'POST', body: JSON.stringify(body),
+                       }),
+  getResults:        (token: string, sampleId: string) =>
+                       apiFetchWithToken<LabResult[]>(`/api/v2/lab/samples/${sampleId}/results`, token),
+  getResult:         (token: string, resultId: string) =>
+                       apiFetchWithToken<LabResult>(`/api/v2/lab/results/${resultId}`, token),
+  correctResult:     (token: string, resultId: string, body: CorrectResultBody) =>
+                       apiFetchWithToken<LabResult>(`/api/v2/lab/results/${resultId}/correct`, token, {
+                         method: 'POST', body: JSON.stringify(body),
+                       }),
+  reviewResult:      (token: string, resultId: string, body: ReviewResultBody) =>
+                       apiFetchWithToken<LabResult>(`/api/v2/lab/results/${resultId}/review`, token, {
+                         method: 'POST', body: JSON.stringify(body),
+                       }),
   getJobs:           (token: string, projectId: string) =>
                        apiFetchWithToken<Job[]>(`/api/v2/jobs/?project_id=${projectId}`, token),
   getWorkerStatus:   () => apiFetch<WorkerStatus>('/api/v1/worker/status'),
@@ -566,6 +585,63 @@ export interface SampleImportRowError {
 export interface SampleImportResult {
   created: number
   errors: SampleImportRowError[]
+}
+
+// ── Laboratório: resultados ──────────────────────────────────────────────
+
+export interface CreateResultBody {
+  analyte: string
+  method?: string | null
+  value_numeric?: number | null
+  value_text?: string | null
+  unit: string
+  lod?: number | null
+  loq?: number | null
+  uncertainty?: number | null
+}
+
+export interface CorrectResultBody {
+  value_numeric?: number | null
+  value_text?: string | null
+  unit?: string | null
+  lod?: number | null
+  loq?: number | null
+  uncertainty?: number | null
+  change_reason?: string | null
+}
+
+export interface ReviewResultBody {
+  status?: 'approved' | 'retracted'
+  note?: string | null
+}
+
+export interface ResultVersion {
+  id: string
+  version: number
+  value_numeric: number | null
+  value_text: string | null
+  unit: string
+  lod: number | null
+  loq: number | null
+  uncertainty: number | null
+  below_lod: boolean
+  status: string
+  supersedes: string | null
+  change_reason: string | null
+  created_by: string
+  reviewed_by: string | null
+  created_at: string
+  display_value: string
+}
+
+export interface LabResult {
+  id: string
+  sample_id: string
+  analyte: string
+  method: string | null
+  created_at: string
+  current: ResultVersion
+  history: ResultVersion[]
 }
 
 export interface UpdateProjectBody {

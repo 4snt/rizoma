@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import useSWR from 'swr'
 import { useSession } from 'next-auth/react'
-import { api, type LimsSampleStatus, type CustodyEvent } from '@/lib/api'
+import { api, type LimsSampleStatus, type CustodyEvent, type LabResult } from '@/lib/api'
 
 const STATUS_OPTIONS: LimsSampleStatus[] = [
   'planned', 'collected', 'in_transit', 'received', 'accepted',
@@ -50,6 +50,198 @@ function CustodyRow({ e }: { e: CustodyEvent }) {
           </span>
         </div>
       </div>
+    </div>
+  )
+}
+
+function resultStatusBadge(status: string) {
+  if (status === 'approved') return <span className="badge badge-green">approved</span>
+  if (status === 'retracted') return <span className="badge badge-red">retracted</span>
+  return <span className="badge badge-amber">{status}</span>
+}
+
+function ResultRow({ token, result, onChanged }: { token: string; result: LabResult; onChanged: () => void }) {
+  const [showCorrect, setShowCorrect] = useState(false)
+  const [correctForm, setCorrectForm] = useState({ value_numeric: '', unit: result.current.unit, change_reason: '' })
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  async function handleCorrect() {
+    if (!correctForm.change_reason.trim()) { setErr('Justificativa da correção é obrigatória (ISO 17025).'); return }
+    setBusy(true); setErr('')
+    try {
+      await api.correctResult(token, result.id, {
+        value_numeric: correctForm.value_numeric ? Number(correctForm.value_numeric) : undefined,
+        unit: correctForm.unit || undefined,
+        change_reason: correctForm.change_reason.trim(),
+      })
+      onChanged()
+      setShowCorrect(false)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Erro ao corrigir resultado.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleReview(status: 'approved' | 'retracted') {
+    setBusy(true)
+    try {
+      await api.reviewResult(token, result.id, { status })
+      onChanged()
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Erro ao revisar resultado.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="card" style={{ padding: '12px 16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>{result.analyte}</span>
+        {result.method && <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{result.method}</span>}
+        <span className="mono" style={{ fontSize: 13, color: 'var(--cyan)', marginLeft: 'auto' }}>
+          {result.current.display_value} {result.current.unit}
+        </span>
+        {resultStatusBadge(result.current.status)}
+        <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)' }}>v{result.current.version}</span>
+      </div>
+
+      <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+        <button onClick={() => setShowCorrect(v => !v)} style={{
+          padding: '4px 12px', background: 'var(--surface-2)', border: '1px solid var(--border)',
+          borderRadius: 'var(--shape-full)', color: 'var(--text-2)', fontSize: 11, cursor: 'pointer',
+        }}>
+          Corrigir
+        </button>
+        {result.current.status !== 'approved' && (
+          <button onClick={() => handleReview('approved')} disabled={busy} style={{
+            padding: '4px 12px', background: 'rgba(16,212,138,0.08)', border: '1px solid rgba(16,212,138,0.25)',
+            borderRadius: 'var(--shape-full)', color: 'var(--green)', fontSize: 11, cursor: 'pointer',
+          }}>
+            Aprovar
+          </button>
+        )}
+        {result.current.status !== 'retracted' && (
+          <button onClick={() => handleReview('retracted')} disabled={busy} style={{
+            padding: '4px 12px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+            borderRadius: 'var(--shape-full)', color: 'var(--red)', fontSize: 11, cursor: 'pointer',
+          }}>
+            Retratar
+          </button>
+        )}
+      </div>
+
+      {showCorrect && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <input
+            type="number" placeholder="Novo valor" value={correctForm.value_numeric}
+            onChange={e => setCorrectForm(f => ({ ...f, value_numeric: e.target.value }))}
+            style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--shape-sm)', color: 'var(--text)', fontSize: 12, padding: '6px 10px', width: 120 }}
+          />
+          <input
+            type="text" placeholder="Unidade" value={correctForm.unit}
+            onChange={e => setCorrectForm(f => ({ ...f, unit: e.target.value }))}
+            style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--shape-sm)', color: 'var(--text)', fontSize: 12, padding: '6px 10px', width: 90 }}
+          />
+          <input
+            type="text" placeholder="Justificativa (obrigatória) *" value={correctForm.change_reason}
+            onChange={e => setCorrectForm(f => ({ ...f, change_reason: e.target.value }))}
+            style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--shape-sm)', color: 'var(--text)', fontSize: 12, padding: '6px 10px', flex: 1, minWidth: 200 }}
+          />
+          <button onClick={handleCorrect} disabled={busy} style={{
+            padding: '6px 14px', background: 'var(--amber)', border: 'none', borderRadius: 'var(--shape-full)',
+            color: '#050d1a', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+          }}>
+            {busy ? '...' : 'Salvar correção'}
+          </button>
+          {err && <div style={{ width: '100%', fontSize: 11, color: 'var(--red)' }}>{err}</div>}
+        </div>
+      )}
+
+      {result.history.length > 0 && (
+        <div style={{ marginTop: 8, fontSize: 10, color: 'var(--text-3)' }}>
+          {result.history.length} versão(ões) anterior(es)
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ResultsPanel({ token, sampleId }: { token: string; sampleId: string }) {
+  const { data: results, mutate } = useSWR(['lab-results', sampleId, token], () => api.getResults(token, sampleId))
+  const [showCreate, setShowCreate] = useState(false)
+  const [form, setForm] = useState({ analyte: '', method: '', value_numeric: '', unit: '' })
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+
+  async function handleCreate() {
+    if (!form.analyte.trim() || !form.unit.trim()) { setErr('Analito e unidade são obrigatórios.'); return }
+    setSaving(true); setErr('')
+    try {
+      await api.createResult(token, sampleId, {
+        analyte: form.analyte.trim(),
+        method: form.method.trim() || null,
+        value_numeric: form.value_numeric ? Number(form.value_numeric) : null,
+        unit: form.unit.trim(),
+      })
+      await mutate()
+      setForm({ analyte: '', method: '', value_numeric: '', unit: '' })
+      setShowCreate(false)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Erro ao lançar resultado.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div style={{ marginBottom: 32 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <span className="section-title" style={{ margin: 0 }}>Resultados</span>
+        <button onClick={() => setShowCreate(v => !v)} style={{
+          padding: '6px 14px', background: 'var(--cyan-dim)', border: '1px solid rgba(0,212,255,0.25)',
+          borderRadius: 'var(--shape-full)', color: 'var(--cyan)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+        }}>
+          {showCreate ? '✕ Fechar' : '+ Lançar Resultado'}
+        </button>
+      </div>
+
+      {showCreate && (
+        <div className="card" style={{ padding: 16, marginBottom: 14 }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+            <input placeholder="Analito *" value={form.analyte} onChange={e => setForm(f => ({ ...f, analyte: e.target.value }))}
+              style={{ flex: '1 1 160px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--shape-sm)', color: 'var(--text)', fontSize: 13, padding: '7px 12px' }} />
+            <input placeholder="Método" value={form.method} onChange={e => setForm(f => ({ ...f, method: e.target.value }))}
+              style={{ flex: '1 1 140px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--shape-sm)', color: 'var(--text)', fontSize: 13, padding: '7px 12px' }} />
+            <input type="number" placeholder="Valor" value={form.value_numeric} onChange={e => setForm(f => ({ ...f, value_numeric: e.target.value }))}
+              style={{ flex: '1 1 100px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--shape-sm)', color: 'var(--text)', fontSize: 13, padding: '7px 12px' }} />
+            <input placeholder="Unidade *" value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}
+              style={{ flex: '1 1 90px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--shape-sm)', color: 'var(--text)', fontSize: 13, padding: '7px 12px' }} />
+          </div>
+          {err && <div style={{ fontSize: 12, color: 'var(--red)', marginBottom: 8 }}>{err}</div>}
+          <button onClick={handleCreate} disabled={saving} style={{
+            padding: '7px 16px', background: 'var(--cyan)', border: 'none', borderRadius: 'var(--shape-full)',
+            color: '#050d1a', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+          }}>
+            {saving ? 'Salvando...' : 'Lançar'}
+          </button>
+        </div>
+      )}
+
+      {!results && <div style={{ fontSize: 13, color: 'var(--text-3)' }}>carregando...</div>}
+      {results && results.length === 0 && (
+        <div className="empty-state" style={{ padding: '24px 16px' }}>
+          <span className="empty-state-icon">◌</span>
+          <span className="empty-state-title">Nenhum resultado lançado.</span>
+        </div>
+      )}
+      {results && results.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {results.map(r => <ResultRow key={r.id} token={token} result={r} onChanged={() => mutate()} />)}
+        </div>
+      )}
     </div>
   )
 }
@@ -186,6 +378,8 @@ export default function SampleDetailPage() {
           {transitionError && <div style={{ marginTop: 10, fontSize: 12, color: 'var(--red)' }}>{transitionError}</div>}
         </div>
       )}
+
+      {token && <ResultsPanel token={token} sampleId={id} />}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
         <span className="section-title" style={{ margin: 0 }}>Cadeia de Custódia</span>
