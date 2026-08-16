@@ -2,6 +2,7 @@
 
 import useSWR from 'swr'
 import Link from 'next/link'
+import { useSession } from 'next-auth/react'
 import { api, type Project } from '@/lib/api'
 
 function markerBadge(marker: string) {
@@ -40,7 +41,12 @@ function MetricCard({
 }
 
 export default function DashboardPage() {
-  const { data: projects, isLoading } = useSWR('projects', api.getProjects)
+  const { data: session } = useSession()
+  const token = session?.accessToken
+  const { data: projects, isLoading } = useSWR(
+    token ? ['projects', token] : null,
+    () => api.getProjects(token!),
+  )
 
   const today = new Date().toLocaleDateString('pt-BR', {
     weekday: 'long',

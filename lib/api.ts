@@ -28,15 +28,22 @@ export async function apiFetchWithToken<T>(
 }
 
 export const api = {
-  getProjects:       () => apiFetch<Project[]>('/api/v1/projects/'),
-  getProject:        (id: string) => apiFetch<Project>(`/api/v1/projects/${id}`),
-  getJobs:           (projectId: string) => apiFetch<Job[]>(`/api/v1/jobs/${projectId}`),
+  // v1/projects.py e v1/jobs.py nunca são montados pelo backend (404 real) —
+  // v2/lims e v2/jobs cobrem list/get/enqueue com contrato equivalente.
+  // Ver 4snt/rizoma-backend#9 (comment) pro mapeamento completo v1→v2.
+  getProjects:       (token: string) => apiFetchWithToken<Project[]>('/api/v2/lims/projects', token),
+  getProject:        (token: string, id: string) => apiFetchWithToken<Project>(`/api/v2/lims/projects/${id}`, token),
+  getJobs:           (token: string, projectId: string) =>
+                       apiFetchWithToken<Job[]>(`/api/v2/jobs/?project_id=${projectId}`, token),
   getWorkerStatus:   () => apiFetch<WorkerStatus>('/api/v1/worker/status'),
   getAnalysisResults:(jobId: string) => apiFetch<AnalysisResult[]>(`/api/v1/analysis/${jobId}/results`),
   searchDegs: (q: string, project?: string) => {
     const params = new URLSearchParams({ q, ...(project ? { project } : {}) })
     return apiFetch<DegResult[]>(`/api/v1/analysis/search/degs?${params}`)
   },
+  // Segue em /api/v1 de propósito: v2/lims.Sample não tem noção de par FASTQ
+  // (fastq_r1_oid/r2_oid) — é outro domínio (custody chain genérico), não dá
+  // pra religar sem perder o dado. Fica preso ao epic #3 (rizoma-backend#9).
   getSamples:       (projectId: string) => apiFetch<Sample[]>(`/api/v1/samples/${projectId}`),
   uploadFastqPair:  (r1: File, r2: File, projectId: string) => {
                       const form = new FormData()
@@ -53,14 +60,14 @@ export const api = {
                       return fetch(`${API_URL}/api/v1/samples/artifact-upload`, { method: 'POST', body: form })
                         .then(res => { if (!res.ok) throw new Error(`API error ${res.status}`); return res.json() }) as Promise<ArtifactUploadResult>
                     },
-  enqueueJob:       (projectId: string, jobType: string, phyloseqOid?: number, payload?: Record<string, unknown>) =>
-                      apiFetch<{ job_id: string }>('/api/v1/jobs/enqueue', {
+  enqueueJob:       (token: string, projectId: string, jobType: string, phyloseqOid?: number, payload?: Record<string, unknown>) =>
+                      apiFetchWithToken<{ id: string }>('/api/v2/jobs/enqueue', token, {
                         method: 'POST',
                         body: JSON.stringify({
                           project_id: projectId,
                           job_type: jobType,
-                          payload: payload ?? {},
-                          phyloseq_oid: phyloseqOid ?? null,
+                          // v2/jobs não tem campo phyloseq_oid dedicado — vai dentro do payload livre.
+                          payload: { ...(payload ?? {}), ...(phyloseqOid != null ? { phyloseq_oid: phyloseqOid } : {}) },
                         }),
                       }),
   getArtifacts:     (projectId: string) =>
@@ -104,6 +111,11 @@ export const api = {
   deactivateUser:  (token: string, userId: string) =>
                      apiFetchWithToken<void>(`/api/v1/admin/users/${userId}/deactivate`, token, { method: 'PATCH' }),
 
+  // Fica em /api/v1 de propósito (404 real, sem religar): body.analyses (catálogo
+  // de análise escolhido na criação) não existe em v2/lims.ProjectCreate — Pydantic
+  // ignora campo desconhecido, então religar direto faria a seleção sumir
+  // silenciosa. Decisão registrada em rizoma-backend#10: só religar quando o
+  // gap for fechado (nova coluna ou decisão de descartar o campo de vez).
   createProject: (token: string, body: CreateProjectBody) =>
                    apiFetchWithToken<{ id: string }>('/api/v1/projects/', token, {
                      method: 'POST',
@@ -178,11 +190,13 @@ export interface Project {
   description: string
   marker_type: '16S' | 'ITS'
   status: string
-  bioproject_accession: string | null
   created_by: string | null
   dada2_params: Dada2Params
-  author: ProjectAuthor | null
-  analyses: AnalysisConfig[]
+  // v2/lims.ProjectOut não devolve isso (domínio v1/metagenomics only) —
+  // opcionais pra UI continuar tolerando ausência.
+  bioproject_accession?: string | null
+  author?: ProjectAuthor | null
+  analyses?: AnalysisConfig[]
 }
 
 export interface CreateProjectBody {

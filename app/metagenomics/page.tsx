@@ -115,8 +115,8 @@ export default function MetagenomicsHubPage() {
   // ── SWR ─────────────────────────────────────────────────────────────────────
 
   const { data: projects, mutate: mutateProjects } = useSWR(
-    'meta-hub-projects',
-    () => api.getProjects(),
+    token ? ['meta-hub-projects', token] : null,
+    () => api.getProjects(token!),
     { refreshInterval: 30000 }
   )
   const { data: samples, mutate: mutateSamples } = useSWR(
@@ -144,8 +144,8 @@ export default function MetagenomicsHubPage() {
     () => api.getAsvTable(selectedId!, level)
   )
   const { data: jobs, mutate: mutateJobs } = useSWR(
-    selectedId ? `meta-jobs-${selectedId}` : null,
-    () => api.getJobs(selectedId!),
+    selectedId && token ? ['meta-jobs', selectedId, token] : null,
+    () => api.getJobs(token!, selectedId!),
     { refreshInterval: 5000 }
   )
 
@@ -163,12 +163,12 @@ export default function MetagenomicsHubPage() {
 
   const [runningType, setRunningType] = useState<string | null>(null)
   async function handleRunAnalysisType(analysisType: string) {
-    if (!selectedId) return
+    if (!selectedId || !token) return
     const oid = artifacts?.available?.[0]?.phyloseq_oid
     if (!oid) { alert('Gere o phyloseq (aba DADA2) antes de rodar as análises.'); return }
     setRunningType(analysisType)
     try {
-      await api.enqueueJob(selectedId, analysisType, Number(oid))
+      await api.enqueueJob(token, selectedId, analysisType, Number(oid))
       await mutateJobs()
     } catch (e) {
       alert((e as Error).message)
@@ -304,11 +304,11 @@ export default function MetagenomicsHubPage() {
   }
 
   async function handleGeneratePhyloseq() {
-    if (!selectedId) return
+    if (!selectedId || !token) return
     setGeneratingPhyloseq(true)
     try {
       const payload = (paramsDraft ?? selectedProject?.dada2_params ?? {}) as Record<string, unknown>
-      await api.enqueueJob(selectedId, 'dada2_pipeline', undefined, payload)
+      await api.enqueueJob(token, selectedId, 'dada2_pipeline', undefined, payload)
     }
     catch (e) { alert((e as Error).message) }
     finally { setGeneratingPhyloseq(false) }

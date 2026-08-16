@@ -96,8 +96,12 @@ function ProjectCard({ p }: { p: Project }) {
 }
 
 export default function ProjectsPage() {
-  const { data: projects, error, isLoading } = useSWR('projects', api.getProjects)
   const { data: session } = useSession()
+  const token = session?.accessToken
+  const { data: projects, error, isLoading } = useSWR(
+    token ? ['projects', token] : null,
+    () => api.getProjects(token!),
+  )
   const isAdmin = session?.role === 'admin'
 
   return (

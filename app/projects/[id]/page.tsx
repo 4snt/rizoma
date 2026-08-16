@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import useSWR, { mutate } from 'swr'
+import { useSession } from 'next-auth/react'
 import { api, type Project, type Job, type Sample, type ProjectArtifacts, type SraMetadata, type SraRunsResult, type FastqSourceInfo } from '@/lib/api'
 
 const ANALYSIS_TYPES = [
@@ -64,10 +65,12 @@ function jobStatusBadge(status: string) {
 export default function ProjectDetailPage() {
   const params = useParams()
   const id = params?.id as string
+  const { data: session } = useSession()
+  const token = session?.accessToken
 
   const { data: project, error: projectError } = useSWR(
-    id ? ['project', id] : null,
-    () => api.getProject(id),
+    id && token ? ['project', id, token] : null,
+    () => api.getProject(token!, id),
   )
 
   const { data: samples, error: samplesError } = useSWR(
@@ -77,8 +80,8 @@ export default function ProjectDetailPage() {
   )
 
   const { data: jobs, error: jobsError } = useSWR(
-    id ? ['jobs', id] : null,
-    () => api.getJobs(id),
+    id && token ? ['jobs', id, token] : null,
+    () => api.getJobs(token!, id),
     { refreshInterval: 5000 },
   )
 
@@ -239,11 +242,11 @@ export default function ProjectDetailPage() {
   const samplesWithFastq = samples?.filter((s: Sample) => s.fastq_r1_oid && s.fastq_r2_oid) ?? []
 
   async function handleGeneratePhyloseq() {
-    if (!id || generatingPhyloseq) return
+    if (!id || !token || generatingPhyloseq) return
     setGeneratingPhyloseq(true)
     setPhyloseqStatus('enfileirando...')
     try {
-      await api.enqueueJob(id, 'dada2_pipeline')
+      await api.enqueueJob(token!, id, 'dada2_pipeline')
       setPhyloseqStatus('job enfileirado — acompanhe o progresso em Analises')
       mutate(['jobs', id])
     } catch (e: unknown) {
@@ -275,10 +278,10 @@ export default function ProjectDetailPage() {
   }
 
   async function handleEnqueue() {
-    if (!id) return
+    if (!id || !token) return
     setEnqueueing(true)
     try {
-      await api.enqueueJob(id, selectedJobType, selectedOid ?? undefined, buildPayload())
+      await api.enqueueJob(token!, id, selectedJobType, selectedOid ?? undefined, buildPayload())
       mutate(['jobs', id])
       setShowEnqueue(false)
     } catch {
