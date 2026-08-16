@@ -123,13 +123,13 @@ export default function ProjectSamplesPage() {
         <span className="breadcrumb-sep">/</span>
         <Link href={`/projects/${projectId}`}>{project?.code ?? '...'}</Link>
         <span className="breadcrumb-sep">/</span>
-        <span>Amostras (LIMS)</span>
+        <span>Amostras (custódia)</span>
       </div>
 
       <div className="page-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
-          <h1 className="page-title">Amostras</h1>
-          <p className="page-subtitle">Cadeia de custódia · {project?.name ?? '...'}</p>
+          <h1 className="page-title">Amostras (custódia)</h1>
+          <p className="page-subtitle">Coleta, transporte e cadeia de custódia — distinto das Amostras FASTQ da metagenômica · {project?.name ?? '...'}</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexShrink: 0, marginTop: 4 }}>
           <button
