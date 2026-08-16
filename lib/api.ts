@@ -33,6 +33,15 @@ export const api = {
   // Ver 4snt/rizoma-backend#9 (comment) pro mapeamento completo v1→v2.
   getProjects:       (token: string) => apiFetchWithToken<Project[]>('/api/v2/lims/projects', token),
   getProject:        (token: string, id: string) => apiFetchWithToken<Project>(`/api/v2/lims/projects/${id}`, token),
+
+  // ── LIMS: Clientes (4snt/rizoma#7) ──────────────────────────────────────
+  getCustomers:      (token: string) => apiFetchWithToken<Customer[]>('/api/v2/lims/customers', token),
+  getCustomer:       (token: string, id: string) => apiFetchWithToken<Customer>(`/api/v2/lims/customers/${id}`, token),
+  createCustomer:    (token: string, body: CreateCustomerBody) =>
+                       apiFetchWithToken<Customer>('/api/v2/lims/customers', token, {
+                         method: 'POST',
+                         body: JSON.stringify(body),
+                       }),
   getJobs:           (token: string, projectId: string) =>
                        apiFetchWithToken<Job[]>(`/api/v2/jobs/?project_id=${projectId}`, token),
   getWorkerStatus:   () => apiFetch<WorkerStatus>('/api/v1/worker/status'),
@@ -183,6 +192,28 @@ export interface Dada2Params {
   chimera_method?: string
 }
 
+// ── LIMS: Clientes ────────────────────────────────────────────────────────
+
+export interface Customer {
+  id: string
+  organization_id: string
+  name: string
+  document: string | null
+  contact_email: string | null
+  contact_phone: string | null
+  notes: string | null
+  created_by: string | null
+  created_at: string
+}
+
+export interface CreateCustomerBody {
+  name: string
+  document?: string | null
+  contact_email?: string | null
+  contact_phone?: string | null
+  notes?: string | null
+}
+
 export interface Project {
   id: string
   code: string
@@ -192,6 +223,8 @@ export interface Project {
   status: string
   created_by: string | null
   dada2_params: Dada2Params
+  // v2/lims.ProjectOut only:
+  customer_id?: string | null
   // v2/lims.ProjectOut não devolve isso (domínio v1/metagenomics only) —
   // opcionais pra UI continuar tolerando ausência.
   bioproject_accession?: string | null
