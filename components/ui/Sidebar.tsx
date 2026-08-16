@@ -18,7 +18,8 @@ const NAV_ITEMS = [
 // LIMS (v2/lims, v2/inventory, v2/interop, v2/laboratory, v2/reports) —
 // ver epic 4snt/rizoma#5. Cresce conforme #7-#12 forem fechando.
 const LIMS_NAV_ITEMS = [
-  { href: '/customers', label: 'Clientes', icon: '◇' },
+  { href: '/customers', label: 'Clientes',   icon: '◇' },
+  { href: '/inventory', label: 'Inventário', icon: '▢' },
 ]
 
 const ADMIN_NAV_ITEMS = [

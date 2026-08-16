@@ -61,6 +61,40 @@ export const api = {
                        }),
   getCustodyChain:   (token: string, sampleId: string) =>
                        apiFetchWithToken<CustodyChain>(`/api/v2/lims/samples/${sampleId}/custody`, token),
+
+  // ── Inventário: reagentes + equipamentos (4snt/rizoma#9) ────────────────
+  getReagents:       (token: string) => apiFetchWithToken<Reagent[]>('/api/v2/inventory/reagents', token),
+  createReagent:     (token: string, body: CreateReagentBody) =>
+                       apiFetchWithToken<Reagent>('/api/v2/inventory/reagents', token, {
+                         method: 'POST', body: JSON.stringify(body),
+                       }),
+  getReagentLots:    (token: string, reagentId: string) =>
+                       apiFetchWithToken<ReagentLot[]>(`/api/v2/inventory/reagents/${reagentId}/lots`, token),
+  createReagentLot:  (token: string, reagentId: string, body: CreateReagentLotBody) =>
+                       apiFetchWithToken<ReagentLot>(`/api/v2/inventory/reagents/${reagentId}/lots`, token, {
+                         method: 'POST', body: JSON.stringify(body),
+                       }),
+  consumeReagentLot: (token: string, lotId: string, body: ReagentConsumptionBody) =>
+                       apiFetchWithToken<ReagentConsumption>(`/api/v2/inventory/reagent-lots/${lotId}/consumptions`, token, {
+                         method: 'POST', body: JSON.stringify(body),
+                       }),
+  getEquipment:      (token: string) => apiFetchWithToken<Equipment[]>('/api/v2/inventory/equipment', token),
+  createEquipment:   (token: string, body: CreateEquipmentBody) =>
+                       apiFetchWithToken<Equipment>('/api/v2/inventory/equipment', token, {
+                         method: 'POST', body: JSON.stringify(body),
+                       }),
+  updateEquipmentStatus: (token: string, equipmentId: string, status: EquipmentStatus) =>
+                       apiFetchWithToken<Equipment>(`/api/v2/inventory/equipment/${equipmentId}/status`, token, {
+                         method: 'PATCH', body: JSON.stringify({ status }),
+                       }),
+  getCalibrations:   (token: string, equipmentId: string) =>
+                       apiFetchWithToken<EquipmentCalibration[]>(`/api/v2/inventory/equipment/${equipmentId}/calibrations`, token),
+  recordCalibration: (token: string, equipmentId: string, body: CreateCalibrationBody) =>
+                       apiFetchWithToken<EquipmentCalibration>(`/api/v2/inventory/equipment/${equipmentId}/calibrations`, token, {
+                         method: 'POST', body: JSON.stringify(body),
+                       }),
+  getInventoryAlerts: (token: string, withinDays = 30) =>
+                       apiFetchWithToken<InventoryAlerts>(`/api/v2/inventory/alerts?within_days=${withinDays}`, token),
   getJobs:           (token: string, projectId: string) =>
                        apiFetchWithToken<Job[]>(`/api/v2/jobs/?project_id=${projectId}`, token),
   getWorkerStatus:   () => apiFetch<WorkerStatus>('/api/v1/worker/status'),
@@ -339,6 +373,137 @@ export interface CustodyChain {
   sample_id: string
   events: CustodyEvent[]
   chain_valid: boolean
+}
+
+// ── Inventário: reagentes + equipamentos ────────────────────────────────────
+
+export interface Reagent {
+  id: string
+  organization_id: string
+  name: string
+  manufacturer: string | null
+  catalog_number: string | null
+  unit: string
+  created_by: string | null
+  created_at: string
+}
+
+export interface CreateReagentBody {
+  name: string
+  manufacturer?: string | null
+  catalog_number?: string | null
+  unit: string
+}
+
+export interface ReagentLot {
+  id: string
+  organization_id: string
+  reagent_id: string
+  lot_number: string
+  supplier: string | null
+  quantity_received: number
+  quantity_remaining: number
+  unit: string
+  received_at: string
+  expires_at: string | null
+  created_by: string | null
+  created_at: string
+}
+
+export interface CreateReagentLotBody {
+  lot_number: string
+  supplier?: string | null
+  quantity_received: number
+  unit: string
+  received_at?: string | null
+  expires_at?: string | null
+}
+
+export interface ReagentConsumptionBody {
+  sample_id?: string | null
+  job_id?: string | null
+  quantity: number
+  notes?: string | null
+}
+
+export interface ReagentConsumption {
+  id: string
+  organization_id: string
+  reagent_lot_id: string
+  sample_id: string | null
+  job_id: string | null
+  quantity: number
+  consumed_by: string | null
+  consumed_at: string
+  notes: string | null
+}
+
+export type EquipmentStatus = 'active' | 'maintenance' | 'retired'
+
+export interface Equipment {
+  id: string
+  organization_id: string
+  name: string
+  identifier: string | null
+  manufacturer: string | null
+  model: string | null
+  serial_number: string | null
+  location: string | null
+  status: EquipmentStatus
+  created_by: string | null
+  created_at: string
+}
+
+export interface CreateEquipmentBody {
+  name: string
+  identifier?: string | null
+  manufacturer?: string | null
+  model?: string | null
+  serial_number?: string | null
+  location?: string | null
+}
+
+export interface EquipmentCalibration {
+  id: string
+  organization_id: string
+  equipment_id: string
+  calibrated_at: string
+  next_calibration_due: string
+  certificate_number: string | null
+  performed_by: string | null
+  notes: string | null
+  created_by: string | null
+  created_at: string
+}
+
+export interface CreateCalibrationBody {
+  calibrated_at: string
+  next_calibration_due: string
+  certificate_number?: string | null
+  performed_by?: string | null
+  notes?: string | null
+}
+
+export interface ExpiringLotAlert {
+  reagent_lot_id: string
+  reagent_id: string
+  reagent_name: string
+  lot_number: string
+  expires_at: string
+  days_remaining: number
+}
+
+export interface CalibrationDueAlert {
+  equipment_id: string
+  equipment_name: string
+  last_calibration_id: string
+  next_calibration_due: string
+  days_remaining: number
+}
+
+export interface InventoryAlerts {
+  expiring_lots: ExpiringLotAlert[]
+  calibrations_due: CalibrationDueAlert[]
 }
 
 export interface UpdateProjectBody {
