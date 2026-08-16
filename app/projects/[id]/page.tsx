@@ -381,9 +381,9 @@ export default function ProjectDetailPage() {
               transition: 'all 0.15s',
             }}
           >
-            🧪 Amostras (LIMS)
+            🧪 Amostras (custódia)
             <span style={{ fontSize: 10, color: 'var(--text-3)', fontWeight: 400 }}>
-              Cadeia de custódia →
+              Coleta · transporte · cadeia de custódia →
             </span>
           </Link>
           <Link
@@ -406,10 +406,10 @@ export default function ProjectDetailPage() {
         </div>
       )}
 
-      {/* Amostras */}
+      {/* Amostras FASTQ (metagenômica) — distinto de "Amostras (custódia)" do LIMS acima */}
       <div style={{ marginBottom: 32 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
-          <span className="section-title" style={{ flex: 1 }}>Amostras</span>
+          <span className="section-title" style={{ flex: 1 }}>Amostras FASTQ</span>
           <div style={{ display: 'flex', gap: 8 }}>
             <button
               onClick={() => { setShowSraImport(v => !v); setShowUpload(false) }}
