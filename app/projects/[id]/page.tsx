@@ -349,9 +349,9 @@ export default function ProjectDetailPage() {
         )}
       </div>
 
-      {/* Acesso rápido ao módulo metagenômico */}
+      {/* Acesso rápido aos módulos */}
       {project && (
-        <div style={{ marginBottom: 20 }}>
+        <div style={{ marginBottom: 20, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <Link
             href={`/projects/${id}/metagenomics`}
             style={{
@@ -359,7 +359,7 @@ export default function ProjectDetailPage() {
               padding: '8px 18px',
               background: 'rgba(0,212,255,0.08)',
               border: '1px solid rgba(0,212,255,0.25)',
-              borderRadius: 8, color: 'var(--cyan)',
+              borderRadius: 'var(--shape-full)', color: 'var(--cyan)',
               fontSize: 13, fontWeight: 600, textDecoration: 'none',
               transition: 'all 0.15s',
             }}
@@ -367,6 +367,23 @@ export default function ProjectDetailPage() {
             🧬 Módulo de Metagenômica
             <span style={{ fontSize: 10, color: 'var(--text-3)', fontWeight: 400 }}>
               ASV · Diversidade · PCoA · Biomarcadores →
+            </span>
+          </Link>
+          <Link
+            href={`/projects/${id}/samples`}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '8px 18px',
+              background: 'rgba(16,212,138,0.08)',
+              border: '1px solid rgba(16,212,138,0.25)',
+              borderRadius: 'var(--shape-full)', color: 'var(--green)',
+              fontSize: 13, fontWeight: 600, textDecoration: 'none',
+              transition: 'all 0.15s',
+            }}
+          >
+            🧪 Amostras (LIMS)
+            <span style={{ fontSize: 10, color: 'var(--text-3)', fontWeight: 400 }}>
+              Cadeia de custódia →
             </span>
           </Link>
         </div>

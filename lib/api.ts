@@ -42,6 +42,25 @@ export const api = {
                          method: 'POST',
                          body: JSON.stringify(body),
                        }),
+
+  // ── LIMS: Amostras + cadeia de custódia (4snt/rizoma#8) ─────────────────
+  getLimsSamples:    (token: string, projectId: string) =>
+                       apiFetchWithToken<LimsSample[]>(`/api/v2/lims/projects/${projectId}/samples`, token),
+  getLimsSample:      (token: string, sampleId: string) =>
+                       apiFetchWithToken<LimsSample>(`/api/v2/lims/samples/${sampleId}`, token),
+  createLimsSample:  (token: string, projectId: string, body: CreateLimsSampleBody) =>
+                       apiFetchWithToken<LimsSample>(`/api/v2/lims/projects/${projectId}/samples`, token, {
+                         method: 'POST',
+                         headers: { 'Idempotency-Key': crypto.randomUUID() },
+                         body: JSON.stringify(body),
+                       }),
+  transitionLimsSample: (token: string, sampleId: string, body: SampleTransitionBody) =>
+                       apiFetchWithToken<LimsSample>(`/api/v2/lims/samples/${sampleId}/transition`, token, {
+                         method: 'POST',
+                         body: JSON.stringify(body),
+                       }),
+  getCustodyChain:   (token: string, sampleId: string) =>
+                       apiFetchWithToken<CustodyChain>(`/api/v2/lims/samples/${sampleId}/custody`, token),
   getJobs:           (token: string, projectId: string) =>
                        apiFetchWithToken<Job[]>(`/api/v2/jobs/?project_id=${projectId}`, token),
   getWorkerStatus:   () => apiFetch<WorkerStatus>('/api/v1/worker/status'),
@@ -239,6 +258,87 @@ export interface CreateProjectBody {
   marker_type: '16S' | 'ITS'
   analyses: AnalysisConfig[]
   dada2_params?: Dada2Params
+}
+
+// ── LIMS: Amostras + cadeia de custódia ─────────────────────────────────────
+// Domínio genérico (v2/lims.Sample) — não confundir com o Sample de
+// bio-frontend metagenômico (par FASTQ), ver comentário em getSamples acima.
+
+export type LimsSampleMatrix =
+  | 'solo' | 'sedimento' | 'agua' | 'tecido_vegetal' | 'raiz' | 'folha'
+  | 'biomassa' | 'cultura_microbiana' | 'dna' | 'rna' | 'extrato'
+  | 'biochar' | 'formulado' | 'substrato'
+
+export type LimsSampleStatus =
+  | 'planned' | 'collected' | 'in_transit' | 'received' | 'accepted'
+  | 'rejected' | 'processing' | 'analyzed' | 'stored' | 'consumed' | 'disposed'
+
+export type CustodyEventType =
+  | 'coleta' | 'transporte' | 'recebimento' | 'transferencia'
+  | 'processamento' | 'armazenamento' | 'retirada' | 'devolucao' | 'descarte'
+
+export interface LimsSample {
+  id: string
+  organization_id: string
+  project_id: string
+  code: string
+  matrix: LimsSampleMatrix
+  treatment_group: string | null
+  replicate: number | null
+  status: LimsSampleStatus
+  lat: number | null
+  lon: number | null
+  collected_by: string | null
+  occurred_at: string | null
+  recorded_at: string
+  notes: string | null
+  created_at: string
+}
+
+export interface CreateLimsSampleBody {
+  id?: string
+  code: string
+  matrix: LimsSampleMatrix
+  treatment_group?: string | null
+  replicate?: number | null
+  status?: LimsSampleStatus
+  lat?: number | null
+  lon?: number | null
+  occurred_at?: string | null
+  notes?: string | null
+}
+
+export interface SampleTransitionBody {
+  to_status: LimsSampleStatus
+  to_custodian?: string | null
+  occurred_at?: string | null
+  lat?: number | null
+  lon?: number | null
+  temperature_c?: number | null
+  condition?: string | null
+  notes?: string | null
+}
+
+export interface CustodyEvent {
+  id: string
+  sample_id: string
+  seq: number
+  event_type: CustodyEventType
+  from_custodian: string | null
+  to_custodian: string | null
+  occurred_at: string
+  recorded_at: string
+  temperature_c: number | null
+  condition: string | null
+  notes: string | null
+  prev_hash: string | null
+  hash: string
+}
+
+export interface CustodyChain {
+  sample_id: string
+  events: CustodyEvent[]
+  chain_valid: boolean
 }
 
 export interface UpdateProjectBody {
