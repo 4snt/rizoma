@@ -1,5 +1,10 @@
 'use client'
 
+// UI diz "Pesquisador" (linguagem do público acadêmico, NEBIM/UFVJM) —
+// backend/API continuam "customer" (termo de LIMS genérico vindo do estudo
+// 07-analise-padroes-compatibilidade.md, pensado pra laboratório comercial).
+// Só rótulo visível mudou; tipo/rota/schema seguem Customer/customers de propósito.
+
 import { useState } from 'react'
 import Link from 'next/link'
 import useSWR from 'swr'
@@ -63,7 +68,7 @@ export default function CustomersPage() {
       setForm({ name: '', document: '', contact_email: '', contact_phone: '', notes: '' })
       setShowCreate(false)
     } catch (e) {
-      setCreateError(e instanceof Error ? e.message : 'Erro ao criar cliente.')
+      setCreateError(e instanceof Error ? e.message : 'Erro ao criar pesquisador.')
     } finally {
       setCreating(false)
     }
@@ -73,8 +78,8 @@ export default function CustomersPage() {
     <>
       <div className="page-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
-          <h1 className="page-title">Clientes</h1>
-          <p className="page-subtitle">Clientes do laboratório (LIMS)</p>
+          <h1 className="page-title">Pesquisadores</h1>
+          <p className="page-subtitle">Pesquisadores/orientadores responsáveis pelos projetos (LIMS)</p>
         </div>
         <button
           onClick={() => setShowCreate(v => !v)}
@@ -85,13 +90,13 @@ export default function CustomersPage() {
             padding: '8px 16px', border: 'none', cursor: 'pointer', flexShrink: 0, marginTop: 4,
           }}
         >
-          {showCreate ? '✕ Fechar' : '+ Novo Cliente'}
+          {showCreate ? '✕ Fechar' : '+ Novo Pesquisador'}
         </button>
       </div>
 
       {showCreate && (
         <div className="card" style={{ padding: 20, marginBottom: 20 }}>
-          <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 14, fontSize: 14 }}>Novo Cliente</div>
+          <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 14, fontSize: 14 }}>Novo Pesquisador</div>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
             <div style={{ flex: '1 1 220px' }}>
               <label style={{ display: 'block', fontSize: 12, color: 'var(--text-2)', marginBottom: 6 }}>Nome *</label>
@@ -169,7 +174,7 @@ export default function CustomersPage() {
               cursor: !creating && form.name.trim() ? 'pointer' : 'not-allowed',
             }}
           >
-            {creating ? 'Criando...' : 'Criar Cliente'}
+            {creating ? 'Criando...' : 'Criar Pesquisador'}
           </button>
         </div>
       )}
@@ -188,15 +193,15 @@ export default function CustomersPage() {
       {error && (
         <div className="card" style={{ padding: 20, color: 'var(--red)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <span>⚠</span>
-          <span>Erro ao carregar clientes.</span>
+          <span>Erro ao carregar pesquisadores.</span>
         </div>
       )}
 
       {!isLoading && !error && customers && customers.length === 0 && (
         <div className="empty-state">
           <span className="empty-state-icon">◌</span>
-          <span className="empty-state-title">Nenhum cliente cadastrado</span>
-          <span className="empty-state-desc">Crie o primeiro cliente pra começar a abrir projetos.</span>
+          <span className="empty-state-title">Nenhum pesquisador cadastrado</span>
+          <span className="empty-state-desc">Crie o primeiro pesquisador pra começar a abrir projetos.</span>
         </div>
       )}
 

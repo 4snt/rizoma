@@ -33,7 +33,7 @@ export default function CustomerDetailPage() {
   if (customerError) {
     return (
       <div className="card" style={{ padding: 20, color: 'var(--red)' }}>
-        Erro ao carregar cliente.
+        Erro ao carregar pesquisador.
       </div>
     )
   }
@@ -41,7 +41,7 @@ export default function CustomerDetailPage() {
   return (
     <>
       <div className="breadcrumb">
-        <Link href="/customers">Clientes</Link>
+        <Link href="/customers">Pesquisadores</Link>
         <span className="breadcrumb-sep">/</span>
         <span>{customer?.name ?? '...'}</span>
       </div>
@@ -64,7 +64,7 @@ export default function CustomerDetailPage() {
         )}
       </div>
 
-      <div className="section-title">Projetos deste cliente</div>
+      <div className="section-title">Projetos deste pesquisador</div>
 
       {projects.length === 0 && (
         <div className="empty-state" style={{ padding: '32px 16px' }}>
