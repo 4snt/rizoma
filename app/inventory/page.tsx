@@ -8,6 +8,7 @@ import {
   type Reagent, type ReagentLot,
   type Equipment, type EquipmentStatus,
 } from '@/lib/api'
+import { can } from '@/lib/permissions'
 
 const inputStyle: React.CSSProperties = {
   background: 'var(--bg)', border: '1px solid var(--border)',
@@ -68,7 +69,7 @@ function AlertsPanel({ token }: { token: string }) {
 
 // ── Reagentes ────────────────────────────────────────────────────────────
 
-function LotsPanel({ token, reagentId, unit }: { token: string; reagentId: string; unit: string }) {
+function LotsPanel({ token, role, reagentId, unit }: { token: string; role: string | undefined; reagentId: string; unit: string }) {
   const { data: lots, mutate } = useSWR(['reagent-lots', reagentId, token], () => api.getReagentLots(token, reagentId))
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState({ lot_number: '', supplier: '', quantity_received: '', expires_at: '' })
@@ -113,12 +114,14 @@ function LotsPanel({ token, reagentId, unit }: { token: string; reagentId: strin
     <div style={{ padding: '10px 16px 16px', background: 'var(--bg)', borderTop: '1px solid var(--border)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
         <span style={{ fontSize: 12, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Lotes</span>
-        <button onClick={() => setShowAdd(v => !v)} style={pillBtn('rgba(0,212,255,0.08)', 'var(--cyan)')}>
-          {showAdd ? '✕' : '+ Lote'}
-        </button>
+        {can(role, 'reagent:write') && (
+          <button onClick={() => setShowAdd(v => !v)} style={pillBtn('rgba(0,212,255,0.08)', 'var(--cyan)')}>
+            {showAdd ? '✕' : '+ Lote'}
+          </button>
+        )}
       </div>
 
-      {showAdd && (
+      {showAdd && can(role, 'reagent:write') && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
           <input placeholder="Nº do lote" value={form.lot_number} onChange={e => setForm(f => ({ ...f, lot_number: e.target.value }))} style={{ ...inputStyle, flex: '1 1 120px' }} />
           <input placeholder="Fornecedor" value={form.supplier} onChange={e => setForm(f => ({ ...f, supplier: e.target.value }))} style={{ ...inputStyle, flex: '1 1 120px' }} />
@@ -138,7 +141,9 @@ function LotsPanel({ token, reagentId, unit }: { token: string; reagentId: strin
               <span className="mono" style={{ color: 'var(--text)' }}>{lot.lot_number}</span>
               <span style={{ color: 'var(--text-2)', flex: 1 }}>{lot.quantity_remaining}/{lot.quantity_received} {lot.unit}</span>
               {lot.expires_at && <span style={{ color: 'var(--text-3)' }}>vence {new Date(lot.expires_at).toLocaleDateString('pt-BR')}</span>}
-              <button onClick={() => handleConsume(lot)} style={pillBtn('rgba(168,85,247,0.08)', 'var(--purple)')}>Baixar</button>
+              {can(role, 'reagent:write') && (
+                <button onClick={() => handleConsume(lot)} style={pillBtn('rgba(168,85,247,0.08)', 'var(--purple)')}>Baixar</button>
+              )}
             </div>
           ))}
         </div>
@@ -147,7 +152,7 @@ function LotsPanel({ token, reagentId, unit }: { token: string; reagentId: strin
   )
 }
 
-function ReagentsSection({ token }: { token: string }) {
+function ReagentsSection({ token, role }: { token: string; role: string | undefined }) {
   const { data: reagents, mutate } = useSWR(['reagents', token], () => api.getReagents(token))
   const [expanded, setExpanded] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -178,12 +183,14 @@ function ReagentsSection({ token }: { token: string }) {
     <div style={{ marginBottom: 32 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <span className="section-title" style={{ margin: 0 }}>Reagentes</span>
-        <button onClick={() => setShowCreate(v => !v)} style={pillBtn('var(--cyan-dim)', 'var(--cyan)')}>
-          {showCreate ? '✕ Fechar' : '+ Novo Reagente'}
-        </button>
+        {can(role, 'reagent:write') && (
+          <button onClick={() => setShowCreate(v => !v)} style={pillBtn('var(--cyan-dim)', 'var(--cyan)')}>
+            {showCreate ? '✕ Fechar' : '+ Novo Reagente'}
+          </button>
+        )}
       </div>
 
-      {showCreate && (
+      {showCreate && can(role, 'reagent:write') && (
         <div className="card" style={{ padding: 16, marginBottom: 14 }}>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
             <input placeholder="Nome *" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} style={{ ...inputStyle, flex: '1 1 180px' }} />
@@ -216,7 +223,7 @@ function ReagentsSection({ token }: { token: string }) {
                 <span className="badge badge-blue">{r.unit}</span>
                 <span style={{ color: 'var(--text-3)', fontSize: 12 }}>{expanded === r.id ? '▲' : '▼'}</span>
               </div>
-              {expanded === r.id && <LotsPanel token={token} reagentId={r.id} unit={r.unit} />}
+              {expanded === r.id && <LotsPanel token={token} role={role} reagentId={r.id} unit={r.unit} />}
             </div>
           ))}
         </div>
@@ -233,7 +240,7 @@ function statusBadgeClass(s: EquipmentStatus) {
   return 'badge-red'
 }
 
-function CalibrationsPanel({ token, equipmentId }: { token: string; equipmentId: string }) {
+function CalibrationsPanel({ token, role, equipmentId }: { token: string; role: string | undefined; equipmentId: string }) {
   const { data: calibrations, mutate } = useSWR(['calibrations', equipmentId, token], () => api.getCalibrations(token, equipmentId))
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState({ calibrated_at: '', next_calibration_due: '', certificate_number: '', performed_by: '' })
@@ -264,12 +271,14 @@ function CalibrationsPanel({ token, equipmentId }: { token: string; equipmentId:
     <div style={{ padding: '10px 16px 16px', background: 'var(--bg)', borderTop: '1px solid var(--border)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
         <span style={{ fontSize: 12, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Calibrações</span>
-        <button onClick={() => setShowAdd(v => !v)} style={pillBtn('rgba(0,212,255,0.08)', 'var(--cyan)')}>
-          {showAdd ? '✕' : '+ Calibração'}
-        </button>
+        {can(role, 'equipment:write') && (
+          <button onClick={() => setShowAdd(v => !v)} style={pillBtn('rgba(0,212,255,0.08)', 'var(--cyan)')}>
+            {showAdd ? '✕' : '+ Calibração'}
+          </button>
+        )}
       </div>
 
-      {showAdd && (
+      {showAdd && can(role, 'equipment:write') && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
           <input type="date" value={form.calibrated_at} onChange={e => setForm(f => ({ ...f, calibrated_at: e.target.value }))} style={{ ...inputStyle, flex: '1 1 130px' }} />
           <input type="date" placeholder="Próxima" value={form.next_calibration_due} onChange={e => setForm(f => ({ ...f, next_calibration_due: e.target.value }))} style={{ ...inputStyle, flex: '1 1 130px' }} />
@@ -297,7 +306,7 @@ function CalibrationsPanel({ token, equipmentId }: { token: string; equipmentId:
   )
 }
 
-function EquipmentSection({ token }: { token: string }) {
+function EquipmentSection({ token, role }: { token: string; role: string | undefined }) {
   const { data: equipment, mutate } = useSWR(['equipment', token], () => api.getEquipment(token))
   const [expanded, setExpanded] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -339,12 +348,14 @@ function EquipmentSection({ token }: { token: string }) {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <span className="section-title" style={{ margin: 0 }}>Equipamentos</span>
-        <button onClick={() => setShowCreate(v => !v)} style={pillBtn('var(--cyan-dim)', 'var(--cyan)')}>
-          {showCreate ? '✕ Fechar' : '+ Novo Equipamento'}
-        </button>
+        {can(role, 'equipment:write') && (
+          <button onClick={() => setShowCreate(v => !v)} style={pillBtn('var(--cyan-dim)', 'var(--cyan)')}>
+            {showCreate ? '✕ Fechar' : '+ Novo Equipamento'}
+          </button>
+        )}
       </div>
 
-      {showCreate && (
+      {showCreate && can(role, 'equipment:write') && (
         <div className="card" style={{ padding: 16, marginBottom: 14 }}>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
             <input placeholder="Nome *" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} style={{ ...inputStyle, flex: '1 1 180px' }} />
@@ -377,21 +388,25 @@ function EquipmentSection({ token }: { token: string }) {
                   {eq.name}
                 </span>
                 {eq.location && <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{eq.location}</span>}
-                <select
-                  value={eq.status}
-                  onChange={e => handleStatusChange(eq, e.target.value as EquipmentStatus)}
-                  className={`badge ${statusBadgeClass(eq.status)}`}
-                  style={{ border: 'none', cursor: 'pointer' }}
-                >
-                  <option value="active">active</option>
-                  <option value="maintenance">maintenance</option>
-                  <option value="retired">retired</option>
-                </select>
+                {can(role, 'equipment:write') ? (
+                  <select
+                    value={eq.status}
+                    onChange={e => handleStatusChange(eq, e.target.value as EquipmentStatus)}
+                    className={`badge ${statusBadgeClass(eq.status)}`}
+                    style={{ border: 'none', cursor: 'pointer' }}
+                  >
+                    <option value="active">active</option>
+                    <option value="maintenance">maintenance</option>
+                    <option value="retired">retired</option>
+                  </select>
+                ) : (
+                  <span className={`badge ${statusBadgeClass(eq.status)}`}>{eq.status}</span>
+                )}
                 <span onClick={() => setExpanded(expanded === eq.id ? null : eq.id)} style={{ color: 'var(--text-3)', fontSize: 12, cursor: 'pointer' }}>
                   {expanded === eq.id ? '▲' : '▼'}
                 </span>
               </div>
-              {expanded === eq.id && <CalibrationsPanel token={token} equipmentId={eq.id} />}
+              {expanded === eq.id && <CalibrationsPanel token={token} role={role} equipmentId={eq.id} />}
             </div>
           ))}
         </div>
@@ -403,6 +418,7 @@ function EquipmentSection({ token }: { token: string }) {
 export default function InventoryPage() {
   const { data: session } = useSession()
   const token = session?.accessToken
+  const role = session?.role
 
   return (
     <>
@@ -412,8 +428,8 @@ export default function InventoryPage() {
       </div>
 
       {token && <AlertsPanel token={token} />}
-      {token && <ReagentsSection token={token} />}
-      {token && <EquipmentSection token={token} />}
+      {token && <ReagentsSection token={token} role={role} />}
+      {token && <EquipmentSection token={token} role={role} />}
     </>
   )
 }
