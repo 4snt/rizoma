@@ -17,10 +17,11 @@ const NAV_ITEMS = [
 
 // LIMS (v2/lims, v2/inventory, v2/interop, v2/laboratory, v2/reports) —
 // ver epic 4snt/rizoma#5. Cresce conforme #7-#12 forem fechando.
+//
+// Não existe mais "Pesquisadores" separado (ADR-011, rizoma-backend):
+// pesquisador é sempre um organization_member de verdade, gerenciado em
+// Usuários (ADMIN_NAV_ITEMS abaixo) — não um contato solto com página própria.
 const LIMS_NAV_ITEMS = [
-  // Rótulo "Pesquisadores" — "Cliente" (nome do tipo/rota, herdado do
-  // estudo de LIMS genérico) não faz sentido pro público acadêmico.
-  { href: '/customers', label: 'Pesquisadores', icon: '◇' },
   { href: '/inventory', label: 'Inventário', icon: '▢' },
   { href: '/interop',   label: 'Interop',    icon: '⇄' },
 ]
@@ -30,8 +31,8 @@ const ADMIN_NAV_ITEMS = [
   // /admin/projects/new continuava existindo e funcionando, só ficou sem
   // atalho). Restaurado junto da correção do bug isAdmin (ver auth.ts).
   { href: '/admin/projects/new', label: 'Novo Projeto', icon: '⊕' },
-  // /admin/users antigo aponta pro v1 morto (404, ver rizoma-backend#11) —
-  // /admin/members é a versão nova, contra v2/identity (listar + convidar).
+  // Único cadastro de pessoa do sistema agora: convidar, trocar papel,
+  // remover — e é aqui que se escolhe o "pesquisador" de um projeto.
   { href: '/admin/members', label: 'Usuários', icon: '◉' },
 ]
 

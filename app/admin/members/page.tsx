@@ -22,7 +22,7 @@ export default function MembersPage() {
   const { data: session } = useSession()
   const token = session?.accessToken
 
-  const { data: members, error: membersError, isLoading: membersLoading } = useSWR(
+  const { data: members, error: membersError, isLoading: membersLoading, mutate: mutateMembers } = useSWR(
     token ? ['members', token] : null,
     () => api.getMembers(token!),
   )
@@ -37,6 +37,8 @@ export default function MembersPage() {
   const [role, setRole] = useState<OrgRole>('viewer')
   const [inviting, setInviting] = useState(false)
   const [inviteError, setInviteError] = useState('')
+  const [rowError, setRowError] = useState<string | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
 
   async function handleInvite() {
     if (!token) return
@@ -56,7 +58,51 @@ export default function MembersPage() {
     }
   }
 
+  async function handleRevoke(invitationId: string) {
+    if (!token) return
+    setBusyId(invitationId)
+    setRowError(null)
+    try {
+      await api.revokeInvitation(token, invitationId)
+      await mutateInvites()
+    } catch (e) {
+      setRowError(e instanceof Error ? e.message : 'Erro ao revogar convite.')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function handleRoleChange(userId: string, newRole: string) {
+    if (!token) return
+    setBusyId(userId)
+    setRowError(null)
+    try {
+      await api.updateMemberRole(token, userId, newRole as OrgRole)
+      await mutateMembers()
+    } catch (e) {
+      setRowError(e instanceof Error ? e.message : 'Erro ao trocar papel.')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function handleRemove(userId: string, name: string) {
+    if (!token) return
+    if (!confirm(`Remover ${name} desta organização?`)) return
+    setBusyId(userId)
+    setRowError(null)
+    try {
+      await api.removeMember(token, userId)
+      await mutateMembers()
+    } catch (e) {
+      setRowError(e instanceof Error ? e.message : 'Erro ao remover membro.')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   const pendingInvitations = (invitations ?? []).filter(i => !i.accepted_at)
+  const myEmail = session?.userEmail
 
   return (
     <>
@@ -124,6 +170,12 @@ export default function MembersPage() {
         </div>
       )}
 
+      {rowError && (
+        <div className="card" style={{ padding: '10px 16px', marginBottom: 16, color: 'var(--red)', fontSize: 13 }}>
+          {rowError}
+        </div>
+      )}
+
       {pendingInvitations.length > 0 && (
         <div style={{ marginBottom: 28 }}>
           <div className="section-title">Convites pendentes</div>
@@ -136,6 +188,18 @@ export default function MembersPage() {
                 <span style={{ fontSize: 11, color: 'var(--text-3)' }}>
                   convidado em {new Date(i.invited_at).toLocaleDateString('pt-BR')}
                 </span>
+                <button
+                  onClick={() => handleRevoke(i.id)}
+                  disabled={busyId === i.id}
+                  title="Revogar convite"
+                  style={{
+                    background: 'transparent', border: '1px solid rgba(239,68,68,0.3)',
+                    borderRadius: 6, color: 'var(--red)', cursor: busyId === i.id ? 'not-allowed' : 'pointer',
+                    fontSize: 12, padding: '3px 10px', opacity: busyId === i.id ? 0.6 : 1,
+                  }}
+                >
+                  Revogar
+                </button>
               </div>
             ))}
           </div>
@@ -169,28 +233,58 @@ export default function MembersPage() {
                 <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>E-mail</th>
                 <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>Papel</th>
                 <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>Desde</th>
+                <th style={{ padding: '8px 12px' }}></th>
               </tr>
             </thead>
             <tbody>
-              {members.map(m => (
-                <tr key={m.id} style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-                  <td style={{ padding: '10px 12px', color: 'var(--text)' }}>{m.name}</td>
-                  <td style={{ padding: '10px 12px' }}><span className="mono" style={{ fontSize: 12, color: 'var(--text-2)' }}>{m.email}</span></td>
-                  <td style={{ padding: '10px 12px' }}><span className="badge badge-cyan">{ROLE_LABEL[m.role] ?? m.role}</span></td>
-                  <td style={{ padding: '10px 12px', color: 'var(--text-3)', fontSize: 12 }}>
-                    {new Date(m.created_at).toLocaleDateString('pt-BR')}
-                  </td>
-                </tr>
-              ))}
+              {members.map(m => {
+                const isSelf = myEmail != null && m.email === myEmail
+                return (
+                  <tr key={m.id} style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '10px 12px', color: 'var(--text)' }}>{m.name}</td>
+                    <td style={{ padding: '10px 12px' }}><span className="mono" style={{ fontSize: 12, color: 'var(--text-2)' }}>{m.email}</span></td>
+                    <td style={{ padding: '10px 12px' }}>
+                      <select
+                        value={m.role}
+                        onChange={e => handleRoleChange(m.user_id, e.target.value)}
+                        disabled={isSelf || busyId === m.user_id}
+                        title={isSelf ? 'Peça a outro administrador pra mudar seu próprio papel' : undefined}
+                        style={{
+                          background: 'var(--surface-2)', border: '1px solid var(--border)',
+                          borderRadius: 'var(--shape-sm)', color: 'var(--text)', fontSize: 12,
+                          padding: '4px 8px', cursor: isSelf ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {ORG_ROLES.map(r => <option key={r} value={r}>{ROLE_LABEL[r] ?? r}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ padding: '10px 12px', color: 'var(--text-3)', fontSize: 12 }}>
+                      {new Date(m.created_at).toLocaleDateString('pt-BR')}
+                    </td>
+                    <td style={{ padding: '10px 12px' }}>
+                      {!isSelf && (
+                        <button
+                          onClick={() => handleRemove(m.user_id, m.name)}
+                          disabled={busyId === m.user_id}
+                          title="Remover desta organização"
+                          style={{
+                            background: 'transparent', border: '1px solid rgba(239,68,68,0.3)',
+                            borderRadius: 6, color: 'var(--red)',
+                            cursor: busyId === m.user_id ? 'not-allowed' : 'pointer',
+                            fontSize: 12, padding: '3px 10px', opacity: busyId === m.user_id ? 0.6 : 1,
+                          }}
+                        >
+                          Remover
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
       )}
-
-      <p style={{ marginTop: 24, fontSize: 12, color: 'var(--text-3)' }}>
-        Revogar convite, trocar papel e ativar/desativar usuário ainda não têm endpoint no backend
-        (ver <span className="mono">rizoma-backend#11</span>) — só listar e convidar por enquanto.
-      </p>
     </>
   )
 }
