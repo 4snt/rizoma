@@ -130,10 +130,13 @@ function WorkerPanel() {
 function UserPanel() {
   const { data: session } = useSession()
 
-  // Auto sign-out if session has NotInvited error
+  // Qualquer erro de sessão (convite revogado, refresh do token falhou —
+  // ver auth.ts) significa que a sessão tá morta mesmo que o cookie do
+  // NextAuth ainda pareça válido. Força logout em vez de deixar o usuário
+  // "logado" vendo 401 em toda tela.
   useEffect(() => {
-    if (session?.error === 'NotInvited') {
-      signOut({ callbackUrl: '/login?error=NotInvited' })
+    if (session?.error) {
+      signOut({ callbackUrl: `/login?error=${session.error}` })
     }
   }, [session?.error])
 
