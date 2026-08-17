@@ -4,13 +4,17 @@ import { useState } from 'react'
 import useSWR from 'swr'
 import { useSession } from 'next-auth/react'
 import { api, WEBHOOK_EVENT_TYPES, type WebhookEventType } from '@/lib/api'
+import { can } from '@/lib/permissions'
 
 export default function InteropPage() {
   const { data: session } = useSession()
   const token = session?.accessToken
+  const role = session?.role
+  const canRead = can(role, 'member:read')
+  const canWrite = can(role, 'member:write')
 
   const { data: webhooks, error, isLoading, mutate } = useSWR(
-    token ? ['webhooks', token] : null,
+    token && canRead ? ['webhooks', token] : null,
     () => api.getWebhooks(token!),
   )
 
@@ -62,17 +66,26 @@ export default function InteropPage() {
           <h1 className="page-title">Interop</h1>
           <p className="page-subtitle">Webhooks de eventos · import/export de amostras fica na página de cada projeto</p>
         </div>
-        <button
-          onClick={() => { setShowCreate(v => !v); setNewSecret(null) }}
-          style={{
-            background: 'var(--cyan)', color: '#050d1a', border: 'none',
-            borderRadius: 'var(--shape-full)', fontWeight: 700, fontSize: 13,
-            padding: '8px 16px', cursor: 'pointer', flexShrink: 0, marginTop: 4,
-          }}
-        >
-          {showCreate ? '✕ Fechar' : '+ Novo Webhook'}
-        </button>
+        {canWrite && (
+          <button
+            onClick={() => { setShowCreate(v => !v); setNewSecret(null) }}
+            style={{
+              background: 'var(--cyan)', color: '#050d1a', border: 'none',
+              borderRadius: 'var(--shape-full)', fontWeight: 700, fontSize: 13,
+              padding: '8px 16px', cursor: 'pointer', flexShrink: 0, marginTop: 4,
+            }}
+          >
+            {showCreate ? '✕ Fechar' : '+ Novo Webhook'}
+          </button>
+        )}
       </div>
+
+      {!canRead && (
+        <div className="empty-state" style={{ padding: '32px 16px' }}>
+          <span className="empty-state-icon">◌</span>
+          <span className="empty-state-title">Seu papel não tem acesso a webhooks — fale com um administrador da organização.</span>
+        </div>
+      )}
 
       {newSecret && (
         <div className="card" style={{ padding: 16, marginBottom: 20, borderColor: 'rgba(16,212,138,0.3)' }}>
@@ -99,7 +112,7 @@ export default function InteropPage() {
         </div>
       )}
 
-      {showCreate && (
+      {showCreate && canWrite && (
         <div className="card" style={{ padding: 20, marginBottom: 20 }}>
           <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 14, fontSize: 14 }}>Novo Webhook</div>
           <div style={{ marginBottom: 12 }}>
@@ -175,15 +188,17 @@ export default function InteropPage() {
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {w.event_types.map(e => <span key={e} className="badge badge-cyan">{e}</span>)}
               </div>
-              <button
-                onClick={() => handleDelete(w.id)}
-                style={{
-                  background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--shape-full)',
-                  color: 'var(--text-3)', cursor: 'pointer', fontSize: 11, padding: '3px 10px', flexShrink: 0,
-                }}
-              >
-                Remover
-              </button>
+              {canWrite && (
+                <button
+                  onClick={() => handleDelete(w.id)}
+                  style={{
+                    background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--shape-full)',
+                    color: 'var(--text-3)', cursor: 'pointer', fontSize: 11, padding: '3px 10px', flexShrink: 0,
+                  }}
+                >
+                  Remover
+                </button>
+              )}
             </div>
           ))}
         </div>

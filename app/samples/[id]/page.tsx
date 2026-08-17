@@ -6,6 +6,7 @@ import Link from 'next/link'
 import useSWR from 'swr'
 import { useSession } from 'next-auth/react'
 import { api, type LimsSampleStatus, type CustodyEvent, type LabResult } from '@/lib/api'
+import { can } from '@/lib/permissions'
 
 const STATUS_OPTIONS: LimsSampleStatus[] = [
   'planned', 'collected', 'in_transit', 'received', 'accepted',
@@ -60,7 +61,7 @@ function resultStatusBadge(status: string) {
   return <span className="badge badge-amber">{status}</span>
 }
 
-function ResultRow({ token, result, onChanged }: { token: string; result: LabResult; onChanged: () => void }) {
+function ResultRow({ token, role, result, onChanged }: { token: string; role: string | undefined; result: LabResult; onChanged: () => void }) {
   const [showCorrect, setShowCorrect] = useState(false)
   const [correctForm, setCorrectForm] = useState({ value_numeric: '', unit: result.current.unit, change_reason: '' })
   const [busy, setBusy] = useState(false)
@@ -108,30 +109,34 @@ function ResultRow({ token, result, onChanged }: { token: string; result: LabRes
         <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)' }}>v{result.current.version}</span>
       </div>
 
-      <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-        <button onClick={() => setShowCorrect(v => !v)} style={{
-          padding: '4px 12px', background: 'var(--surface-2)', border: '1px solid var(--border)',
-          borderRadius: 'var(--shape-full)', color: 'var(--text-2)', fontSize: 11, cursor: 'pointer',
-        }}>
-          Corrigir
-        </button>
-        {result.current.status !== 'approved' && (
-          <button onClick={() => handleReview('approved')} disabled={busy} style={{
-            padding: '4px 12px', background: 'rgba(16,212,138,0.08)', border: '1px solid rgba(16,212,138,0.25)',
-            borderRadius: 'var(--shape-full)', color: 'var(--green)', fontSize: 11, cursor: 'pointer',
-          }}>
-            Aprovar
-          </button>
-        )}
-        {result.current.status !== 'retracted' && (
-          <button onClick={() => handleReview('retracted')} disabled={busy} style={{
-            padding: '4px 12px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
-            borderRadius: 'var(--shape-full)', color: 'var(--red)', fontSize: 11, cursor: 'pointer',
-          }}>
-            Retratar
-          </button>
-        )}
-      </div>
+      {(can(role, 'result:write') || can(role, 'result:review')) && (
+        <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+          {can(role, 'result:write') && (
+            <button onClick={() => setShowCorrect(v => !v)} style={{
+              padding: '4px 12px', background: 'var(--surface-2)', border: '1px solid var(--border)',
+              borderRadius: 'var(--shape-full)', color: 'var(--text-2)', fontSize: 11, cursor: 'pointer',
+            }}>
+              Corrigir
+            </button>
+          )}
+          {can(role, 'result:review') && result.current.status !== 'approved' && (
+            <button onClick={() => handleReview('approved')} disabled={busy} style={{
+              padding: '4px 12px', background: 'rgba(16,212,138,0.08)', border: '1px solid rgba(16,212,138,0.25)',
+              borderRadius: 'var(--shape-full)', color: 'var(--green)', fontSize: 11, cursor: 'pointer',
+            }}>
+              Aprovar
+            </button>
+          )}
+          {can(role, 'result:review') && result.current.status !== 'retracted' && (
+            <button onClick={() => handleReview('retracted')} disabled={busy} style={{
+              padding: '4px 12px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+              borderRadius: 'var(--shape-full)', color: 'var(--red)', fontSize: 11, cursor: 'pointer',
+            }}>
+              Retratar
+            </button>
+          )}
+        </div>
+      )}
 
       {showCorrect && (
         <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
@@ -169,7 +174,7 @@ function ResultRow({ token, result, onChanged }: { token: string; result: LabRes
   )
 }
 
-function ResultsPanel({ token, sampleId }: { token: string; sampleId: string }) {
+function ResultsPanel({ token, role, sampleId }: { token: string; role: string | undefined; sampleId: string }) {
   const { data: results, mutate } = useSWR(['lab-results', sampleId, token], () => api.getResults(token, sampleId))
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState({ analyte: '', method: '', value_numeric: '', unit: '' })
@@ -200,15 +205,17 @@ function ResultsPanel({ token, sampleId }: { token: string; sampleId: string }) 
     <div style={{ marginBottom: 32 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <span className="section-title" style={{ margin: 0 }}>Resultados</span>
-        <button onClick={() => setShowCreate(v => !v)} style={{
-          padding: '6px 14px', background: 'var(--cyan-dim)', border: '1px solid rgba(0,212,255,0.25)',
-          borderRadius: 'var(--shape-full)', color: 'var(--cyan)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-        }}>
-          {showCreate ? '✕ Fechar' : '+ Lançar Resultado'}
-        </button>
+        {can(role, 'result:write') && (
+          <button onClick={() => setShowCreate(v => !v)} style={{
+            padding: '6px 14px', background: 'var(--cyan-dim)', border: '1px solid rgba(0,212,255,0.25)',
+            borderRadius: 'var(--shape-full)', color: 'var(--cyan)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+          }}>
+            {showCreate ? '✕ Fechar' : '+ Lançar Resultado'}
+          </button>
+        )}
       </div>
 
-      {showCreate && (
+      {showCreate && can(role, 'result:write') && (
         <div className="card" style={{ padding: 16, marginBottom: 14 }}>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
             <input placeholder="Analito *" value={form.analyte} onChange={e => setForm(f => ({ ...f, analyte: e.target.value }))}
@@ -239,7 +246,7 @@ function ResultsPanel({ token, sampleId }: { token: string; sampleId: string }) 
       )}
       {results && results.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {results.map(r => <ResultRow key={r.id} token={token} result={r} onChanged={() => mutate()} />)}
+          {results.map(r => <ResultRow key={r.id} token={token} role={role} result={r} onChanged={() => mutate()} />)}
         </div>
       )}
     </div>
@@ -251,6 +258,7 @@ export default function SampleDetailPage() {
   const id = params?.id as string
   const { data: session } = useSession()
   const token = session?.accessToken
+  const role = session?.role
 
   const { data: sample, error: sampleError, mutate: mutateSample } = useSWR(
     id && token ? ['lims-sample', id, token] : null,
@@ -320,19 +328,21 @@ export default function SampleDetailPage() {
             </p>
           )}
         </div>
-        <button
-          onClick={() => setShowTransition(v => !v)}
-          style={{
-            background: 'rgba(16,212,138,0.1)', border: '1px solid rgba(16,212,138,0.25)',
-            borderRadius: 'var(--shape-full)', color: 'var(--green)', fontSize: 13, fontWeight: 600,
-            padding: '8px 16px', cursor: 'pointer',
-          }}
-        >
-          {showTransition ? '✕ Fechar' : '▶ Transicionar Status'}
-        </button>
+        {can(role, 'sample:write') && (
+          <button
+            onClick={() => setShowTransition(v => !v)}
+            style={{
+              background: 'rgba(16,212,138,0.1)', border: '1px solid rgba(16,212,138,0.25)',
+              borderRadius: 'var(--shape-full)', color: 'var(--green)', fontSize: 13, fontWeight: 600,
+              padding: '8px 16px', cursor: 'pointer',
+            }}
+          >
+            {showTransition ? '✕ Fechar' : '▶ Transicionar Status'}
+          </button>
+        )}
       </div>
 
-      {showTransition && (
+      {showTransition && can(role, 'sample:write') && (
         <div className="card" style={{ padding: 20, marginBottom: 20 }}>
           <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 14, fontSize: 14 }}>Nova Transição</div>
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
@@ -379,7 +389,7 @@ export default function SampleDetailPage() {
         </div>
       )}
 
-      {token && <ResultsPanel token={token} sampleId={id} />}
+      {token && can(role, 'result:read') && <ResultsPanel token={token} role={role} sampleId={id} />}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
         <span className="section-title" style={{ margin: 0 }}>Cadeia de Custódia</span>

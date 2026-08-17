@@ -29,6 +29,12 @@ export default function MembersPage() {
   const [labelsError, setLabelsError] = useState('')
   const catalog = catalogDraft ?? myLabels ?? []
 
+  // Edição de uma entrada existente (lápis) — vive separada do formulário
+  // de "novo rótulo" porque edita in-place em vez de adicionar ao fim.
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [editLabel, setEditLabel] = useState('')
+  const [editRoles, setEditRoles] = useState<OrgRole[]>([])
+
   function handleAddLabel() {
     const label = newLabel.trim()
     if (!label || newLabelRoles.length === 0) return
@@ -39,6 +45,23 @@ export default function MembersPage() {
 
   function handleRemoveLabel(index: number) {
     setCatalogDraft(catalog.filter((_, i) => i !== index))
+    if (editingIndex === index) setEditingIndex(null)
+  }
+
+  function startEditLabel(index: number) {
+    setEditingIndex(index)
+    setEditLabel(catalog[index].label)
+    setEditRoles(catalog[index].roles)
+  }
+
+  function handleSaveEditLabel() {
+    if (editingIndex === null) return
+    const label = editLabel.trim()
+    if (!label || editRoles.length === 0) return
+    const next = catalog.slice()
+    next[editingIndex] = { label, roles: editRoles }
+    setCatalogDraft(next)
+    setEditingIndex(null)
   }
 
   async function handleSaveLabels() {
@@ -337,7 +360,53 @@ export default function MembersPage() {
             )}
             {catalog.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
-                {catalog.map((entry, i) => (
+                {catalog.map((entry, i) => editingIndex === i ? (
+                  <div key={i} style={{
+                    display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end',
+                    background: 'var(--bg)', border: '1px solid var(--cyan)',
+                    borderRadius: 'var(--shape-sm)', padding: 10,
+                  }}>
+                    <div style={{ flex: '1 1 180px' }}>
+                      <label style={{ display: 'block', fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>Rótulo</label>
+                      <input
+                        type="text"
+                        value={editLabel}
+                        onChange={e => setEditLabel(e.target.value)}
+                        style={{
+                          width: '100%', background: 'var(--surface)', border: '1px solid var(--border)',
+                          borderRadius: 'var(--shape-sm)', color: 'var(--text)', fontSize: 13,
+                          padding: '7px 12px', outline: 'none', boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+                    <div style={{ flex: '1 1 220px' }}>
+                      <label style={{ display: 'block', fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>Papéis cobertos</label>
+                      <MultiSelect
+                        options={ROLE_OPTIONS}
+                        selected={editRoles}
+                        onChange={vals => setEditRoles(vals as OrgRole[])}
+                      />
+                    </div>
+                    <button
+                      onClick={handleSaveEditLabel}
+                      disabled={!editLabel.trim() || editRoles.length === 0}
+                      style={{
+                        padding: '7px 14px', background: 'var(--cyan)', border: 'none',
+                        borderRadius: 'var(--shape-full)', color: '#050d1a', fontSize: 12, fontWeight: 700,
+                        cursor: editLabel.trim() && editRoles.length > 0 ? 'pointer' : 'not-allowed',
+                        opacity: editLabel.trim() && editRoles.length > 0 ? 1 : 0.6,
+                      }}
+                    >
+                      Salvar
+                    </button>
+                    <button
+                      onClick={() => setEditingIndex(null)}
+                      style={{ background: 'transparent', border: 'none', color: 'var(--text-3)', fontSize: 12, cursor: 'pointer', padding: '7px 4px' }}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                ) : (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span style={{
                       flex: '1 1 200px', fontSize: 13, color: 'var(--text)',
@@ -353,12 +422,23 @@ export default function MembersPage() {
                       ))}
                     </span>
                     <button
+                      onClick={() => startEditLabel(i)}
+                      title="Editar rótulo"
+                      style={{
+                        background: 'transparent', border: '1px solid var(--border)',
+                        borderRadius: 6, color: 'var(--text-2)', cursor: 'pointer',
+                        fontSize: 12, padding: '3px 10px', marginLeft: 'auto',
+                      }}
+                    >
+                      ✎ Editar
+                    </button>
+                    <button
                       onClick={() => handleRemoveLabel(i)}
                       title="Remover rótulo"
                       style={{
                         background: 'transparent', border: '1px solid rgba(239,68,68,0.3)',
                         borderRadius: 6, color: 'var(--red)', cursor: 'pointer',
-                        fontSize: 12, padding: '3px 10px', marginLeft: 'auto',
+                        fontSize: 12, padding: '3px 10px',
                       }}
                     >
                       Remover
