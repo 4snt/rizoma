@@ -15,8 +15,17 @@ export const ORG_ROLES = [
 ] as const
 export type OrgRole = typeof ORG_ROLES[number]
 
-/** Rótulo padrão em português — usado quando a organização não
- * customizou aquele papel específico. */
+/** Um rótulo customizado apontando pra um papel técnico. Vários rótulos
+ * podem apontar pro mesmo papel (ex.: "Mestrando" e "Doutorando" os dois
+ * em lab_tech) — por isso o catálogo da org é uma lista, não um mapa 1:1
+ * (espelha app/modules/identity/schemas.py::RoleLabelEntry no backend). */
+export interface RoleLabelEntry {
+  label: string
+  role: OrgRole
+}
+
+/** Rótulo padrão em português — usado quando a organização não cadastrou
+ * nenhum rótulo customizado pra aquele papel. */
 export const DEFAULT_ROLE_LABEL: Record<OrgRole, string> = {
   org_admin: "Administrador da organização",
   coordinator: "Coordenador",
@@ -28,9 +37,12 @@ export const DEFAULT_ROLE_LABEL: Record<OrgRole, string> = {
   viewer: "Leitor",
 }
 
-/** Resolve o rótulo de exibição de um papel: customizado pela org > padrão
- * em português > a própria string técnica (nunca quebra a tela por um
- * papel desconhecido). */
-export function roleLabel(role: string, customLabels?: Record<string, string> | null): string {
-  return customLabels?.[role] || DEFAULT_ROLE_LABEL[role as OrgRole] || role
+/** Resolve o(s) rótulo(s) de exibição de um papel: todos os rótulos
+ * customizados que a org cadastrou pra esse papel (junta com " / " quando
+ * há mais de um) > padrão em português > a própria string técnica (nunca
+ * quebra a tela por um papel desconhecido). */
+export function roleLabel(role: string, catalog?: RoleLabelEntry[] | null): string {
+  const custom = (catalog ?? []).filter(e => e.role === role).map(e => e.label)
+  if (custom.length > 0) return custom.join(" / ")
+  return DEFAULT_ROLE_LABEL[role as OrgRole] || role
 }

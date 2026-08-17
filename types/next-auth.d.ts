@@ -1,10 +1,11 @@
 import "next-auth"
+import type { RoleLabelEntry } from "@/lib/role-labels"
 
 declare module "next-auth" {
   interface Session {
     accessToken?: string
     role?: string
-    roleLabels?: Record<string, string>
+    roleLabels?: RoleLabelEntry[]
     error?: string
     userEmail?: string
     userName?: string

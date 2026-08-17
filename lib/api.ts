@@ -174,8 +174,9 @@ export const api = {
                        apiFetchWithToken<void>(`/api/v2/identity/members/${userId}`, token, {
                          method: 'DELETE',
                        }),
-  // ADR-013 — substitui o mapa inteiro (não é PATCH incremental).
-  updateRoleLabels:  (token: string, roleLabels: Record<string, string>) =>
+  // ADR-013 — substitui o catálogo inteiro (não é PATCH incremental).
+  // Vários rótulos podem apontar pro mesmo papel técnico.
+  updateRoleLabels:  (token: string, roleLabels: RoleLabelEntry[]) =>
                        apiFetchWithToken<void>('/api/v2/identity/organizations/role-labels', token, {
                          method: 'PUT',
                          body: JSON.stringify({ role_labels: roleLabels }),
@@ -688,7 +689,7 @@ export interface VerifyResult {
 // ORG_ROLES/OrgRole vivem em lib/role-labels.ts (fonte única, junto do
 // resolver de rótulo — ADR-013). Re-exportado aqui só pra não quebrar
 // import existente de quem já fazia `import { ORG_ROLES } from '@/lib/api'`.
-import { ORG_ROLES, type OrgRole } from './role-labels'
+import { ORG_ROLES, type OrgRole, type RoleLabelEntry } from './role-labels'
 export { ORG_ROLES }
 export type { OrgRole }
 
