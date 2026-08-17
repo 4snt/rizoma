@@ -174,6 +174,12 @@ export const api = {
                        apiFetchWithToken<void>(`/api/v2/identity/members/${userId}`, token, {
                          method: 'DELETE',
                        }),
+  // ADR-013 — substitui o mapa inteiro (não é PATCH incremental).
+  updateRoleLabels:  (token: string, roleLabels: Record<string, string>) =>
+                       apiFetchWithToken<void>('/api/v2/identity/organizations/role-labels', token, {
+                         method: 'PUT',
+                         body: JSON.stringify({ role_labels: roleLabels }),
+                       }),
   getJobs:           (token: string, projectId: string) =>
                        apiFetchWithToken<Job[]>(`/api/v2/jobs/?project_id=${projectId}`, token),
   getWorkerStatus:   () => apiFetch<WorkerStatus>('/api/v1/worker/status'),
@@ -679,12 +685,12 @@ export interface VerifyResult {
 
 // ── Identity: membros + convites ────────────────────────────────────────
 
-// Papéis reais definidos em bio-platform/api/app/shared/context.py PERMISSIONS.
-export const ORG_ROLES = [
-  'org_admin', 'coordinator', 'tech_responsible', 'field_tech',
-  'lab_tech', 'bioinformatician', 'client', 'viewer',
-] as const
-export type OrgRole = typeof ORG_ROLES[number]
+// ORG_ROLES/OrgRole vivem em lib/role-labels.ts (fonte única, junto do
+// resolver de rótulo — ADR-013). Re-exportado aqui só pra não quebrar
+// import existente de quem já fazia `import { ORG_ROLES } from '@/lib/api'`.
+import { ORG_ROLES, type OrgRole } from './role-labels'
+export { ORG_ROLES }
+export type { OrgRole }
 
 // Espelha PERMISSIONS["project:write"] em app/shared/context.py — quem pode
 // criar projeto de verdade no backend. Centralizado aqui pra não repetir o

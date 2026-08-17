@@ -33,7 +33,7 @@ async function loginWithBackend(googleAccessToken: string) {
   return res.json() as Promise<{
     access_token: string
     user: { email: string; name: string }
-    organizations: { role: string }[]
+    organizations: { role: string; role_labels: Record<string, string> }[]
   }>
 }
 
@@ -103,6 +103,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           token.accessToken = data.access_token
           token.accessTokenExpires = jwtExpiresAtMs(data.access_token)
           token.role = data.organizations?.[0]?.role ?? "viewer"
+          token.roleLabels = data.organizations?.[0]?.role_labels ?? {}
           token.userEmail = data.user.email
           token.userName = data.user.name
           token.googleRefreshToken = account.refresh_token
@@ -134,6 +135,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.accessToken = data.access_token
         token.accessTokenExpires = jwtExpiresAtMs(data.access_token)
         token.role = data.organizations?.[0]?.role ?? "viewer"
+        token.roleLabels = data.organizations?.[0]?.role_labels ?? {}
         token.userEmail = data.user.email
         token.userName = data.user.name
         delete token.error
@@ -145,6 +147,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async session({ session, token }) {
       session.accessToken = token.accessToken as string
       session.role        = token.role as string
+      session.roleLabels  = (token.roleLabels as Record<string, string> | undefined) ?? {}
       session.error       = token.error as string | undefined
       session.userEmail   = token.userEmail as string
       session.userName    = token.userName as string

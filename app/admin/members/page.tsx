@@ -4,23 +4,33 @@ import { useState } from 'react'
 import useSWR from 'swr'
 import { useSession } from 'next-auth/react'
 import { api, ORG_ROLES, type OrgRole } from '@/lib/api'
-
-// Rótulo curto pro papel técnico (nomes vêm de app/shared/context.py PERMISSIONS
-// no backend) — só descritivo, não muda o valor enviado.
-const ROLE_LABEL: Record<string, string> = {
-  org_admin: 'Administrador da organização',
-  coordinator: 'Coordenador',
-  tech_responsible: 'Responsável técnico',
-  field_tech: 'Técnico de campo',
-  lab_tech: 'Técnico de laboratório',
-  bioinformatician: 'Bioinformata',
-  client: 'Acesso externo (só leitura de laudos)',
-  viewer: 'Leitor',
-}
+import { roleLabel } from '@/lib/role-labels'
 
 export default function MembersPage() {
-  const { data: session } = useSession()
+  const { data: session, update: updateSession } = useSession()
   const token = session?.accessToken
+  const myLabels = session?.roleLabels
+  const isOrgAdmin = session?.role === 'org_admin'
+
+  const [labelDraft, setLabelDraft] = useState<Record<string, string> | null>(null)
+  const [savingLabels, setSavingLabels] = useState(false)
+  const [labelsError, setLabelsError] = useState('')
+  const labels = labelDraft ?? Object.fromEntries(ORG_ROLES.map(r => [r, roleLabel(r, myLabels)]))
+
+  async function handleSaveLabels() {
+    if (!token) return
+    setSavingLabels(true)
+    setLabelsError('')
+    try {
+      await api.updateRoleLabels(token, labels)
+      await updateSession()
+      setLabelDraft(null)
+    } catch (e) {
+      setLabelsError(e instanceof Error ? e.message : 'Erro ao salvar rótulos.')
+    } finally {
+      setSavingLabels(false)
+    }
+  }
 
   const { data: members, error: membersError, isLoading: membersLoading, mutate: mutateMembers } = useSWR(
     token ? ['members', token] : null,
@@ -149,7 +159,7 @@ export default function MembersPage() {
                   padding: '7px 10px',
                 }}
               >
-                {ORG_ROLES.map(r => <option key={r} value={r}>{ROLE_LABEL[r] ?? r}</option>)}
+                {ORG_ROLES.map(r => <option key={r} value={r}>{roleLabel(r, myLabels)}</option>)}
               </select>
             </div>
             <button
@@ -184,7 +194,7 @@ export default function MembersPage() {
               <div key={i.id} className="card" style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
                 <span className="dot dot-amber" />
                 <span style={{ fontSize: 13, color: 'var(--text)', flex: 1 }}>{i.email}</span>
-                <span className="badge badge-blue">{ROLE_LABEL[i.role] ?? i.role}</span>
+                <span className="badge badge-blue">{roleLabel(i.role, myLabels)}</span>
                 <span style={{ fontSize: 11, color: 'var(--text-3)' }}>
                   convidado em {new Date(i.invited_at).toLocaleDateString('pt-BR')}
                 </span>
@@ -255,7 +265,7 @@ export default function MembersPage() {
                           padding: '4px 8px', cursor: isSelf ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        {ORG_ROLES.map(r => <option key={r} value={r}>{ROLE_LABEL[r] ?? r}</option>)}
+                        {ORG_ROLES.map(r => <option key={r} value={r}>{roleLabel(r, myLabels)}</option>)}
                       </select>
                     </td>
                     <td style={{ padding: '10px 12px', color: 'var(--text-3)', fontSize: 12 }}>
@@ -283,6 +293,59 @@ export default function MembersPage() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {isOrgAdmin && (
+        <div style={{ marginTop: 32 }}>
+          <div className="section-title">Rótulos de papel</div>
+          <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '0 0 12px' }}>
+            Personalize o nome exibido de cada papel pra este laboratório (ex.: "Técnico de laboratório" → "Mestrando").
+            A permissão real não muda, só o texto na tela.
+          </p>
+          <div className="card" style={{ padding: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+              {ORG_ROLES.map(r => (
+                <div key={r}>
+                  <label style={{ display: 'block', fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>{r}</label>
+                  <input
+                    type="text"
+                    value={labels[r] ?? ''}
+                    onChange={e => setLabelDraft({ ...labels, [r]: e.target.value })}
+                    style={{
+                      width: '100%', background: 'var(--bg)', border: '1px solid var(--border)',
+                      borderRadius: 'var(--shape-sm)', color: 'var(--text)', fontSize: 13,
+                      padding: '7px 12px', outline: 'none', boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16 }}>
+              <button
+                onClick={handleSaveLabels}
+                disabled={savingLabels}
+                style={{
+                  padding: '8px 18px',
+                  background: !savingLabels ? 'var(--cyan)' : 'var(--surface-2)',
+                  color: !savingLabels ? '#050d1a' : 'var(--text-3)',
+                  border: 'none', borderRadius: 'var(--shape-full)', fontSize: 13, fontWeight: 700,
+                  cursor: !savingLabels ? 'pointer' : 'not-allowed',
+                }}
+              >
+                {savingLabels ? 'Salvando...' : 'Salvar rótulos'}
+              </button>
+              {labelDraft && (
+                <button
+                  onClick={() => setLabelDraft(null)}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--text-3)', fontSize: 12, cursor: 'pointer' }}
+                >
+                  Descartar
+                </button>
+              )}
+              {labelsError && <span style={{ fontSize: 12, color: 'var(--red)' }}>{labelsError}</span>}
+            </div>
+          </div>
         </div>
       )}
     </>

@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react'
 import useSWR from 'swr'
 import { useSession, signOut } from 'next-auth/react'
 import { api, type WorkerStatus } from '@/lib/api'
+import { roleLabel } from '@/lib/role-labels'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 
 const NAV_ITEMS = [
@@ -215,7 +216,7 @@ function UserPanel() {
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span className={`badge badge-${role === 'org_admin' ? 'amber' : 'cyan'}`} style={{ fontSize: 10 }}>
-          {role}
+          {roleLabel(role, session.roleLabels)}
         </span>
         <button
           onClick={() => signOut({ callbackUrl: '/login' })}
