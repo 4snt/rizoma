@@ -6,6 +6,7 @@ import Link from 'next/link'
 import useSWR from 'swr'
 import { useSession } from 'next-auth/react'
 import { api } from '@/lib/api'
+import { can } from '@/lib/permissions'
 
 export default function ReportDetailPage() {
   const params = useParams()
@@ -65,7 +66,7 @@ export default function ReportDetailPage() {
           </div>
           <p className="page-subtitle" style={{ marginTop: 4 }}>{report.title}</p>
         </div>
-        {!isSigned && (
+        {!isSigned && can(session?.role, 'report:sign') && (
           <button
             onClick={handleSign}
             disabled={signing}

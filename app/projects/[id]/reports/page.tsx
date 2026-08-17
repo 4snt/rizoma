@@ -6,6 +6,7 @@ import Link from 'next/link'
 import useSWR from 'swr'
 import { useSession } from 'next-auth/react'
 import { api } from '@/lib/api'
+import { can } from '@/lib/permissions'
 
 function statusBadge(status: string) {
   if (status === 'published') return <span className="badge badge-green">assinado</span>
@@ -67,19 +68,21 @@ export default function ProjectReportsPage() {
           <h1 className="page-title">Laudos</h1>
           <p className="page-subtitle">{project?.name ?? '...'}</p>
         </div>
-        <button
-          onClick={() => setShowCreate(v => !v)}
-          style={{
-            background: 'var(--cyan)', color: '#050d1a', border: 'none',
-            borderRadius: 'var(--shape-full)', fontWeight: 700, fontSize: 13,
-            padding: '8px 16px', cursor: 'pointer', flexShrink: 0, marginTop: 4,
-          }}
-        >
-          {showCreate ? '✕ Fechar' : '+ Novo Laudo'}
-        </button>
+        {can(session?.role, 'report:write') && (
+          <button
+            onClick={() => setShowCreate(v => !v)}
+            style={{
+              background: 'var(--cyan)', color: '#050d1a', border: 'none',
+              borderRadius: 'var(--shape-full)', fontWeight: 700, fontSize: 13,
+              padding: '8px 16px', cursor: 'pointer', flexShrink: 0, marginTop: 4,
+            }}
+          >
+            {showCreate ? '✕ Fechar' : '+ Novo Laudo'}
+          </button>
+        )}
       </div>
 
-      {showCreate && (
+      {showCreate && can(session?.role, 'report:write') && (
         <div className="card" style={{ padding: 20, marginBottom: 20 }}>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
             <div style={{ flex: '1 1 220px' }}>

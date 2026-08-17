@@ -12,6 +12,7 @@ import {
   type LimsSampleStatus,
   type SampleImportResult,
 } from '@/lib/api'
+import { can } from '@/lib/permissions'
 
 const MATRIX_OPTIONS: LimsSampleMatrix[] = [
   'solo', 'sedimento', 'agua', 'tecido_vegetal', 'raiz', 'folha',
@@ -132,42 +133,48 @@ export default function ProjectSamplesPage() {
           <p className="page-subtitle">Coleta, transporte e cadeia de custódia — distinto das Amostras FASTQ da metagenômica · {project?.name ?? '...'}</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexShrink: 0, marginTop: 4 }}>
-          <button
-            onClick={handleExport}
-            disabled={exporting || !samples?.length}
-            style={{
-              background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-2)',
-              borderRadius: 'var(--shape-full)', fontWeight: 600, fontSize: 13,
-              padding: '8px 16px', cursor: !exporting && samples?.length ? 'pointer' : 'not-allowed',
-            }}
-          >
-            {exporting ? 'Exportando...' : '↓ Exportar CSV'}
-          </button>
-          <input
-            ref={importRef} type="file" accept=".csv" style={{ display: 'none' }}
-            onChange={e => e.target.files?.[0] && handleImport(e.target.files[0])}
-          />
-          <button
-            onClick={() => importRef.current?.click()}
-            disabled={importing}
-            style={{
-              background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.25)', color: 'var(--purple)',
-              borderRadius: 'var(--shape-full)', fontWeight: 600, fontSize: 13,
-              padding: '8px 16px', cursor: importing ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {importing ? 'Importando...' : '↑ Importar CSV'}
-          </button>
-          <button
-            onClick={() => setShowCreate(v => !v)}
-            style={{
-              background: 'var(--cyan)', color: '#050d1a', border: 'none',
-              borderRadius: 'var(--shape-full)', fontWeight: 700, fontSize: 13,
-              padding: '8px 16px', cursor: 'pointer',
-            }}
-          >
-            {showCreate ? '✕ Fechar' : '+ Registrar Amostra'}
-          </button>
+          {can(session?.role, 'sample:read') && (
+            <button
+              onClick={handleExport}
+              disabled={exporting || !samples?.length}
+              style={{
+                background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-2)',
+                borderRadius: 'var(--shape-full)', fontWeight: 600, fontSize: 13,
+                padding: '8px 16px', cursor: !exporting && samples?.length ? 'pointer' : 'not-allowed',
+              }}
+            >
+              {exporting ? 'Exportando...' : '↓ Exportar CSV'}
+            </button>
+          )}
+          {can(session?.role, 'sample:write') && (
+            <>
+              <input
+                ref={importRef} type="file" accept=".csv" style={{ display: 'none' }}
+                onChange={e => e.target.files?.[0] && handleImport(e.target.files[0])}
+              />
+              <button
+                onClick={() => importRef.current?.click()}
+                disabled={importing}
+                style={{
+                  background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.25)', color: 'var(--purple)',
+                  borderRadius: 'var(--shape-full)', fontWeight: 600, fontSize: 13,
+                  padding: '8px 16px', cursor: importing ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {importing ? 'Importando...' : '↑ Importar CSV'}
+              </button>
+              <button
+                onClick={() => setShowCreate(v => !v)}
+                style={{
+                  background: 'var(--cyan)', color: '#050d1a', border: 'none',
+                  borderRadius: 'var(--shape-full)', fontWeight: 700, fontSize: 13,
+                  padding: '8px 16px', cursor: 'pointer',
+                }}
+              >
+                {showCreate ? '✕ Fechar' : '+ Registrar Amostra'}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -191,7 +198,7 @@ export default function ProjectSamplesPage() {
         </div>
       )}
 
-      {showCreate && (
+      {showCreate && can(session?.role, 'sample:write') && (
         <div className="card" style={{ padding: 20, marginBottom: 20 }}>
           <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 14, fontSize: 14 }}>Nova Amostra</div>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
