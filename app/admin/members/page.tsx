@@ -5,11 +5,13 @@ import useSWR from 'swr'
 import { useSession } from 'next-auth/react'
 import { api, ORG_ROLES, type OrgRole } from '@/lib/api'
 import { roleLabel, DEFAULT_ROLE_LABEL, type RoleLabelEntry } from '@/lib/role-labels'
+import { MultiSelect } from '@/components/ui/MultiSelect'
 
 // Nome técnico padrão do papel — usado só na tela de configuração pra
 // identificar qual dos 8 papéis um rótulo customizado representa (nunca
 // pra exibição de um membro real, que sempre passa por roleLabel()).
 const DEFAULT_ROLE_LABEL_OF = (role: OrgRole) => DEFAULT_ROLE_LABEL[role]
+const ROLE_OPTIONS = ORG_ROLES.map(r => ({ value: r, label: DEFAULT_ROLE_LABEL_OF(r) }))
 
 export default function MembersPage() {
   const { data: session, update: updateSession } = useSession()
@@ -22,16 +24,17 @@ export default function MembersPage() {
   // papel, e sim "adicionar rótulo" + escolher o papel via dropdown.
   const [catalogDraft, setCatalogDraft] = useState<RoleLabelEntry[] | null>(null)
   const [newLabel, setNewLabel] = useState('')
-  const [newLabelRole, setNewLabelRole] = useState<OrgRole>('lab_tech')
+  const [newLabelRoles, setNewLabelRoles] = useState<OrgRole[]>([])
   const [savingLabels, setSavingLabels] = useState(false)
   const [labelsError, setLabelsError] = useState('')
   const catalog = catalogDraft ?? myLabels ?? []
 
   function handleAddLabel() {
     const label = newLabel.trim()
-    if (!label) return
-    setCatalogDraft([...catalog, { label, role: newLabelRole }])
+    if (!label || newLabelRoles.length === 0) return
+    setCatalogDraft([...catalog, { label, roles: newLabelRoles }])
     setNewLabel('')
+    setNewLabelRoles([])
   }
 
   function handleRemoveLabel(index: number) {
@@ -321,9 +324,10 @@ export default function MembersPage() {
         <div style={{ marginTop: 32 }}>
           <div className="section-title">Rótulos de papel</div>
           <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '0 0 12px' }}>
-            Adicione os rótulos que este laboratório usa e escolha, pra cada um, qual dos 8 papéis
-            técnicos ele representa (ex.: "Mestrando" → Técnico de laboratório). Mais de um rótulo
-            pode apontar pro mesmo papel — a permissão real nunca muda, só o texto exibido na tela.
+            Adicione os rótulos que este laboratório usa e marque quais dos 8 papéis técnicos cada
+            um cobre — um rótulo pode cobrir vários papéis (ex.: "Bolsista" = Técnico de campo +
+            Técnico de laboratório), e o mesmo papel pode aparecer em mais de um rótulo. A permissão
+            real nunca muda, só o texto exibido na tela.
           </p>
           <div className="card" style={{ padding: 20 }}>
             {catalog.length === 0 && (
@@ -343,8 +347,10 @@ export default function MembersPage() {
                       {entry.label}
                     </span>
                     <span style={{ fontSize: 12, color: 'var(--text-3)' }}>→</span>
-                    <span className="badge badge-blue" style={{ flex: '0 0 auto' }}>
-                      {DEFAULT_ROLE_LABEL_OF(entry.role)}
+                    <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: '1 1 auto' }}>
+                      {entry.roles.map(r => (
+                        <span key={r} className="badge badge-blue">{DEFAULT_ROLE_LABEL_OF(r)}</span>
+                      ))}
                     </span>
                     <button
                       onClick={() => handleRemoveLabel(i)}
@@ -377,29 +383,24 @@ export default function MembersPage() {
                   }}
                 />
               </div>
-              <div style={{ flex: '1 1 220px' }}>
-                <label style={{ display: 'block', fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>Papel do sistema</label>
-                <select
-                  value={newLabelRole}
-                  onChange={e => setNewLabelRole(e.target.value as OrgRole)}
-                  style={{
-                    width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)',
-                    borderRadius: 'var(--shape-sm)', color: 'var(--text)', fontSize: 13,
-                    padding: '7px 10px',
-                  }}
-                >
-                  {ORG_ROLES.map(r => <option key={r} value={r}>{DEFAULT_ROLE_LABEL_OF(r)}</option>)}
-                </select>
+              <div style={{ flex: '1 1 260px' }}>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>Papéis cobertos</label>
+                <MultiSelect
+                  options={ROLE_OPTIONS}
+                  selected={newLabelRoles}
+                  onChange={vals => setNewLabelRoles(vals as OrgRole[])}
+                  placeholder="Escolher papéis..."
+                />
               </div>
               <button
                 onClick={handleAddLabel}
-                disabled={!newLabel.trim()}
+                disabled={!newLabel.trim() || newLabelRoles.length === 0}
                 style={{
                   padding: '8px 16px',
-                  background: newLabel.trim() ? 'var(--surface-2)' : 'var(--surface-2)',
-                  color: newLabel.trim() ? 'var(--text)' : 'var(--text-3)',
+                  background: 'var(--surface-2)',
+                  color: newLabel.trim() && newLabelRoles.length > 0 ? 'var(--text)' : 'var(--text-3)',
                   border: '1px solid var(--border)', borderRadius: 'var(--shape-full)', fontSize: 13, fontWeight: 600,
-                  cursor: newLabel.trim() ? 'pointer' : 'not-allowed',
+                  cursor: newLabel.trim() && newLabelRoles.length > 0 ? 'pointer' : 'not-allowed',
                 }}
               >
                 + Adicionar

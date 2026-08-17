@@ -15,13 +15,15 @@ export const ORG_ROLES = [
 ] as const
 export type OrgRole = typeof ORG_ROLES[number]
 
-/** Um rótulo customizado apontando pra um papel técnico. Vários rótulos
- * podem apontar pro mesmo papel (ex.: "Mestrando" e "Doutorando" os dois
- * em lab_tech) — por isso o catálogo da org é uma lista, não um mapa 1:1
- * (espelha app/modules/identity/schemas.py::RoleLabelEntry no backend). */
+/** Um rótulo customizado agrupando um ou mais papéis técnicos (multi-select
+ * — um rótulo pode cobrir vários papéis, ex.: "Bolsista" = field_tech +
+ * lab_tech). E o mesmo papel pode continuar aparecendo em mais de um
+ * rótulo (ex.: "Mestrando" e "Doutorando" os dois cobrindo lab_tech) —
+ * por isso o catálogo da org é uma lista, nunca um mapa 1:1 (espelha
+ * app/modules/identity/schemas.py::RoleLabelEntry no backend). */
 export interface RoleLabelEntry {
   label: string
-  role: OrgRole
+  roles: OrgRole[]
 }
 
 /** Rótulo padrão em português — usado quando a organização não cadastrou
@@ -38,11 +40,11 @@ export const DEFAULT_ROLE_LABEL: Record<OrgRole, string> = {
 }
 
 /** Resolve o(s) rótulo(s) de exibição de um papel: todos os rótulos
- * customizados que a org cadastrou pra esse papel (junta com " / " quando
- * há mais de um) > padrão em português > a própria string técnica (nunca
- * quebra a tela por um papel desconhecido). */
+ * customizados que cobrem esse papel (junta com " / " quando há mais de
+ * um) > padrão em português > a própria string técnica (nunca quebra a
+ * tela por um papel desconhecido). */
 export function roleLabel(role: string, catalog?: RoleLabelEntry[] | null): string {
-  const custom = (catalog ?? []).filter(e => e.role === role).map(e => e.label)
+  const custom = (catalog ?? []).filter(e => e.roles.includes(role as OrgRole)).map(e => e.label)
   if (custom.length > 0) return custom.join(" / ")
   return DEFAULT_ROLE_LABEL[role as OrgRole] || role
 }

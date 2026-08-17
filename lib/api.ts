@@ -24,6 +24,9 @@ export async function apiFetchWithToken<T>(
   })
   if (res.status === 401) throw new Error('Unauthorized')
   if (!res.ok) throw new Error(`API error ${res.status}: ${path}`)
+  // 204 (DELETE/PUT sem corpo) não tem JSON — `res.json()` nesse caso
+  // sempre estoura "Unexpected end of JSON input".
+  if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
 }
 
