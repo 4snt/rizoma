@@ -4,23 +4,54 @@ import { useState } from 'react'
 import useSWR from 'swr'
 import { useSession } from 'next-auth/react'
 import { api, ORG_ROLES, type OrgRole } from '@/lib/api'
+import { roleLabel, DEFAULT_ROLE_LABEL, type RoleLabelEntry } from '@/lib/role-labels'
 
-// Rótulo curto pro papel técnico (nomes vêm de app/shared/context.py PERMISSIONS
-// no backend) — só descritivo, não muda o valor enviado.
-const ROLE_LABEL: Record<string, string> = {
-  org_admin: 'Administrador da organização',
-  coordinator: 'Coordenador',
-  tech_responsible: 'Responsável técnico',
-  field_tech: 'Técnico de campo',
-  lab_tech: 'Técnico de laboratório',
-  bioinformatician: 'Bioinformata',
-  client: 'Acesso externo (só leitura de laudos)',
-  viewer: 'Leitor',
-}
+// Nome técnico padrão do papel — usado só na tela de configuração pra
+// identificar qual dos 8 papéis um rótulo customizado representa (nunca
+// pra exibição de um membro real, que sempre passa por roleLabel()).
+const DEFAULT_ROLE_LABEL_OF = (role: OrgRole) => DEFAULT_ROLE_LABEL[role]
 
 export default function MembersPage() {
-  const { data: session } = useSession()
+  const { data: session, update: updateSession } = useSession()
   const token = session?.accessToken
+  const myLabels = session?.roleLabels
+  const isOrgAdmin = session?.role === 'org_admin'
+
+  // Catálogo em edição: lista de {label, role} — vários rótulos podem
+  // apontar pro mesmo papel (ADR-013), por isso não é mais um input por
+  // papel, e sim "adicionar rótulo" + escolher o papel via dropdown.
+  const [catalogDraft, setCatalogDraft] = useState<RoleLabelEntry[] | null>(null)
+  const [newLabel, setNewLabel] = useState('')
+  const [newLabelRole, setNewLabelRole] = useState<OrgRole>('lab_tech')
+  const [savingLabels, setSavingLabels] = useState(false)
+  const [labelsError, setLabelsError] = useState('')
+  const catalog = catalogDraft ?? myLabels ?? []
+
+  function handleAddLabel() {
+    const label = newLabel.trim()
+    if (!label) return
+    setCatalogDraft([...catalog, { label, role: newLabelRole }])
+    setNewLabel('')
+  }
+
+  function handleRemoveLabel(index: number) {
+    setCatalogDraft(catalog.filter((_, i) => i !== index))
+  }
+
+  async function handleSaveLabels() {
+    if (!token) return
+    setSavingLabels(true)
+    setLabelsError('')
+    try {
+      await api.updateRoleLabels(token, catalog)
+      await updateSession()
+      setCatalogDraft(null)
+    } catch (e) {
+      setLabelsError(e instanceof Error ? e.message : 'Erro ao salvar rótulos.')
+    } finally {
+      setSavingLabels(false)
+    }
+  }
 
   const { data: members, error: membersError, isLoading: membersLoading, mutate: mutateMembers } = useSWR(
     token ? ['members', token] : null,
@@ -149,7 +180,7 @@ export default function MembersPage() {
                   padding: '7px 10px',
                 }}
               >
-                {ORG_ROLES.map(r => <option key={r} value={r}>{ROLE_LABEL[r] ?? r}</option>)}
+                {ORG_ROLES.map(r => <option key={r} value={r}>{roleLabel(r, myLabels)}</option>)}
               </select>
             </div>
             <button
@@ -184,7 +215,7 @@ export default function MembersPage() {
               <div key={i.id} className="card" style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
                 <span className="dot dot-amber" />
                 <span style={{ fontSize: 13, color: 'var(--text)', flex: 1 }}>{i.email}</span>
-                <span className="badge badge-blue">{ROLE_LABEL[i.role] ?? i.role}</span>
+                <span className="badge badge-blue">{roleLabel(i.role, myLabels)}</span>
                 <span style={{ fontSize: 11, color: 'var(--text-3)' }}>
                   convidado em {new Date(i.invited_at).toLocaleDateString('pt-BR')}
                 </span>
@@ -255,7 +286,7 @@ export default function MembersPage() {
                           padding: '4px 8px', cursor: isSelf ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        {ORG_ROLES.map(r => <option key={r} value={r}>{ROLE_LABEL[r] ?? r}</option>)}
+                        {ORG_ROLES.map(r => <option key={r} value={r}>{roleLabel(r, myLabels)}</option>)}
                       </select>
                     </td>
                     <td style={{ padding: '10px 12px', color: 'var(--text-3)', fontSize: 12 }}>
@@ -283,6 +314,123 @@ export default function MembersPage() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {isOrgAdmin && (
+        <div style={{ marginTop: 32 }}>
+          <div className="section-title">Rótulos de papel</div>
+          <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '0 0 12px' }}>
+            Adicione os rótulos que este laboratório usa e escolha, pra cada um, qual dos 8 papéis
+            técnicos ele representa (ex.: "Mestrando" → Técnico de laboratório). Mais de um rótulo
+            pode apontar pro mesmo papel — a permissão real nunca muda, só o texto exibido na tela.
+          </p>
+          <div className="card" style={{ padding: 20 }}>
+            {catalog.length === 0 && (
+              <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 14 }}>
+                Nenhum rótulo customizado ainda — todos os papéis usam o nome padrão em português.
+              </div>
+            )}
+            {catalog.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+                {catalog.map((entry, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{
+                      flex: '1 1 200px', fontSize: 13, color: 'var(--text)',
+                      background: 'var(--bg)', border: '1px solid var(--border)',
+                      borderRadius: 'var(--shape-sm)', padding: '6px 12px',
+                    }}>
+                      {entry.label}
+                    </span>
+                    <span style={{ fontSize: 12, color: 'var(--text-3)' }}>→</span>
+                    <span className="badge badge-blue" style={{ flex: '0 0 auto' }}>
+                      {DEFAULT_ROLE_LABEL_OF(entry.role)}
+                    </span>
+                    <button
+                      onClick={() => handleRemoveLabel(i)}
+                      title="Remover rótulo"
+                      style={{
+                        background: 'transparent', border: '1px solid rgba(239,68,68,0.3)',
+                        borderRadius: 6, color: 'var(--red)', cursor: 'pointer',
+                        fontSize: 12, padding: '3px 10px', marginLeft: 'auto',
+                      }}
+                    >
+                      Remover
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end', borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+              <div style={{ flex: '1 1 200px' }}>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>Novo rótulo</label>
+                <input
+                  type="text"
+                  value={newLabel}
+                  onChange={e => setNewLabel(e.target.value)}
+                  placeholder="ex.: Mestrando"
+                  style={{
+                    width: '100%', background: 'var(--bg)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--shape-sm)', color: 'var(--text)', fontSize: 13,
+                    padding: '7px 12px', outline: 'none', boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+              <div style={{ flex: '1 1 220px' }}>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--text-3)', marginBottom: 4 }}>Papel do sistema</label>
+                <select
+                  value={newLabelRole}
+                  onChange={e => setNewLabelRole(e.target.value as OrgRole)}
+                  style={{
+                    width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--shape-sm)', color: 'var(--text)', fontSize: 13,
+                    padding: '7px 10px',
+                  }}
+                >
+                  {ORG_ROLES.map(r => <option key={r} value={r}>{DEFAULT_ROLE_LABEL_OF(r)}</option>)}
+                </select>
+              </div>
+              <button
+                onClick={handleAddLabel}
+                disabled={!newLabel.trim()}
+                style={{
+                  padding: '8px 16px',
+                  background: newLabel.trim() ? 'var(--surface-2)' : 'var(--surface-2)',
+                  color: newLabel.trim() ? 'var(--text)' : 'var(--text-3)',
+                  border: '1px solid var(--border)', borderRadius: 'var(--shape-full)', fontSize: 13, fontWeight: 600,
+                  cursor: newLabel.trim() ? 'pointer' : 'not-allowed',
+                }}
+              >
+                + Adicionar
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16 }}>
+              <button
+                onClick={handleSaveLabels}
+                disabled={savingLabels}
+                style={{
+                  padding: '8px 18px',
+                  background: !savingLabels ? 'var(--cyan)' : 'var(--surface-2)',
+                  color: !savingLabels ? '#050d1a' : 'var(--text-3)',
+                  border: 'none', borderRadius: 'var(--shape-full)', fontSize: 13, fontWeight: 700,
+                  cursor: !savingLabels ? 'pointer' : 'not-allowed',
+                }}
+              >
+                {savingLabels ? 'Salvando...' : 'Salvar rótulos'}
+              </button>
+              {catalogDraft && (
+                <button
+                  onClick={() => setCatalogDraft(null)}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--text-3)', fontSize: 12, cursor: 'pointer' }}
+                >
+                  Descartar
+                </button>
+              )}
+              {labelsError && <span style={{ fontSize: 12, color: 'var(--red)' }}>{labelsError}</span>}
+            </div>
+          </div>
         </div>
       )}
     </>
