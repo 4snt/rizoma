@@ -34,14 +34,9 @@ export const api = {
   getProjects:       (token: string) => apiFetchWithToken<Project[]>('/api/v2/lims/projects', token),
   getProject:        (token: string, id: string) => apiFetchWithToken<Project>(`/api/v2/lims/projects/${id}`, token),
 
-  // ── LIMS: Clientes (4snt/rizoma#7) ──────────────────────────────────────
-  getCustomers:      (token: string) => apiFetchWithToken<Customer[]>('/api/v2/lims/customers', token),
-  getCustomer:       (token: string, id: string) => apiFetchWithToken<Customer>(`/api/v2/lims/customers/${id}`, token),
-  createCustomer:    (token: string, body: CreateCustomerBody) =>
-                       apiFetchWithToken<Customer>('/api/v2/lims/customers', token, {
-                         method: 'POST',
-                         body: JSON.stringify(body),
-                       }),
+  // "Pesquisador" de um projeto não tem mais CRUD próprio (ADR-011,
+  // rizoma-backend). É sempre um organization_member — usar getAdminUsers
+  // (membros existentes) pra escolher, ou createInvite pra trazer gente nova.
 
   // ── LIMS: Amostras + cadeia de custódia (4snt/rizoma#8) ─────────────────
   getLimsSamples:    (token: string, projectId: string) =>
@@ -157,15 +152,27 @@ export const api = {
   verifyReport:      (reportId: string, hash?: string) =>
                        apiFetch<VerifyResult>(`/api/v2/reports/${reportId}/verify${hash ? `?hash=${encodeURIComponent(hash)}` : ''}`),
 
-  // ── Identity: membros + convites (estudo LIMS §2.6 — gestão de usuários) ──
-  // Só o que v2/identity já expõe: listar membro, listar/criar convite.
-  // Revogar convite, trocar role, ativar/desativar ficam de fora — backend
-  // ainda não tem esses endpoints (ver rizoma-backend#11).
+  // ── Identity: membros + convites ─────────────────────────────────────────
+  // rizoma-backend#11 fechado: revogar convite, trocar papel e remover
+  // membro (não existe mais "desativar" — a org é multi-tenant de verdade,
+  // a ação correta é tirar a filiação com ESTA organização, não a conta).
   getMembers:        (token: string) => apiFetchWithToken<Member[]>('/api/v2/identity/members', token),
   getInvitations:    (token: string) => apiFetchWithToken<Invitation[]>('/api/v2/identity/invitations', token),
   createInvitation:  (token: string, body: CreateInvitationBody) =>
                        apiFetchWithToken<Invitation>('/api/v2/identity/invitations', token, {
                          method: 'POST', body: JSON.stringify(body),
+                       }),
+  revokeInvitation:  (token: string, invitationId: string) =>
+                       apiFetchWithToken<void>(`/api/v2/identity/invitations/${invitationId}`, token, {
+                         method: 'DELETE',
+                       }),
+  updateMemberRole:  (token: string, userId: string, role: OrgRole) =>
+                       apiFetchWithToken<void>(`/api/v2/identity/members/${userId}/role`, token, {
+                         method: 'PATCH', body: JSON.stringify({ role }),
+                       }),
+  removeMember:      (token: string, userId: string) =>
+                       apiFetchWithToken<void>(`/api/v2/identity/members/${userId}`, token, {
+                         method: 'DELETE',
                        }),
   getJobs:           (token: string, projectId: string) =>
                        apiFetchWithToken<Job[]>(`/api/v2/jobs/?project_id=${projectId}`, token),
@@ -226,28 +233,6 @@ export const api = {
   // Auth-required endpoints
   getMe:           (token: string) =>
                      apiFetchWithToken<UserProfile>('/api/v1/auth/me', token),
-  // v2/identity — rizoma-backend#11 (gap de admin fechado)
-  getAdminUsers:   (token: string) =>
-                     apiFetchWithToken<AdminUser[]>('/api/v2/identity/members', token),
-  getAdminInvites: (token: string) =>
-                     apiFetchWithToken<Invite[]>('/api/v2/identity/invitations', token),
-  createInvite:    (token: string, email: string, role: string) =>
-                     apiFetchWithToken<Invite>('/api/v2/identity/invitations', token, {
-                       method: 'POST',
-                       body: JSON.stringify({ email, role }),
-                     }),
-  deleteInvite:    (token: string, id: string) =>
-                     apiFetchWithToken<void>(`/api/v2/identity/invitations/${id}`, token, { method: 'DELETE' }),
-  updateUserRole:  (token: string, userId: string, role: string) =>
-                     apiFetchWithToken<void>(`/api/v2/identity/members/${userId}/role`, token, {
-                       method: 'PATCH',
-                       body: JSON.stringify({ role }),
-                     }),
-  // Não existe mais "desativar" (usuário é global, org é multi-tenant) —
-  // a ação real é remover a filiação com ESTA organização.
-  removeMember:    (token: string, userId: string) =>
-                     apiFetchWithToken<void>(`/api/v2/identity/members/${userId}`, token, { method: 'DELETE' }),
-
   // Religado pra v2 — gap do body.analyses fechado com a migration
   // 0006_project_analyses (coluna analyses em projects, v2/lims.ProjectCreate
   // já aceita e persiste). Ver rizoma-backend#10 (comment).
@@ -318,27 +303,9 @@ export interface Dada2Params {
   chimera_method?: string
 }
 
-// ── LIMS: Clientes ────────────────────────────────────────────────────────
-
-export interface Customer {
-  id: string
-  organization_id: string
-  name: string
-  document: string | null
-  contact_email: string | null
-  contact_phone: string | null
-  notes: string | null
-  created_by: string | null
-  created_at: string
-}
-
-export interface CreateCustomerBody {
-  name: string
-  document?: string | null
-  contact_email?: string | null
-  contact_phone?: string | null
-  notes?: string | null
-}
+// Não existe mais Customer/CreateCustomerBody (ADR-011). Pesquisador de
+// projeto é sempre AdminUser (organization_member) — ver lib/api.ts,
+// seção "Admin".
 
 export interface Project {
   id: string
@@ -350,7 +317,7 @@ export interface Project {
   created_by: string | null
   dada2_params: Dada2Params
   // v2/lims.ProjectOut only:
-  customer_id?: string | null
+  customer_user_id?: string | null
   // v2/lims.ProjectOut não devolve isso (domínio v1/metagenomics only) —
   // opcionais pra UI continuar tolerando ausência.
   bioproject_accession?: string | null
@@ -367,7 +334,7 @@ export interface CreateProjectBody {
   dada2_params?: Dada2Params
   // v2/lims aceita vincular na criação — nenhum form ainda expõe essa opção
   // (ver 4snt/rizoma#18/nomenclatura), campo só disponível no tipo por ora.
-  customer_id?: string | null
+  customer_user_id?: string | null
 }
 
 // ── LIMS: Amostras + cadeia de custódia ─────────────────────────────────────
@@ -910,24 +877,8 @@ export interface UserProfile {
   last_login: string | null
 }
 
-export interface AdminUser {
-  id: string        // id da filiação (organization_members.id)
-  user_id: string    // id do usuário — usar este nas ações de role/remover
-  email: string
-  name: string
-  role: string
-  created_at: string
-}
-
-export interface Invite {
-  id: string
-  organization_id: string
-  email: string
-  role: string
-  invited_by: string | null
-  invited_at: string
-  accepted_at: string | null
-}
+// AdminUser/Invite removidos — duplicavam Member/Invitation (mais abaixo
+// neste arquivo), que já é o que /admin/members usa de verdade.
 
 // ── Metagenomics ────────────────────────────────────────────────────────────
 
