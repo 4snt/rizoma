@@ -59,6 +59,13 @@ export const api = {
                        }),
   getCustodyChain:   (token: string, sampleId: string) =>
                        apiFetchWithToken<CustodyChain>(`/api/v2/lims/samples/${sampleId}/custody`, token),
+  // Cross-project: projeto é filtro opcional, não pré-requisito — 1 query
+  // no backend, substitui a agregação client-side projeto-por-projeto que
+  // as telas /samples, /reports e /results faziam antes.
+  getAllSamples:     (token: string, projectId?: string) =>
+                       apiFetchWithToken<LimsSampleListItem[]>(
+                         `/api/v2/lims/samples${projectId ? `?project_id=${projectId}` : ''}`, token,
+                       ),
 
   // ── Inventário: reagentes + equipamentos (4snt/rizoma#9) ────────────────
   getReagents:       (token: string) => apiFetchWithToken<Reagent[]>('/api/v2/inventory/reagents', token),
@@ -131,6 +138,15 @@ export const api = {
                        apiFetchWithToken<LabResult[]>(`/api/v2/lab/samples/${sampleId}/results`, token),
   getResult:         (token: string, resultId: string) =>
                        apiFetchWithToken<LabResult>(`/api/v2/lab/results/${resultId}`, token),
+  // Cross-project/amostra: mesma decisão de getAllSamples — 1 query, sem
+  // trazer histórico completo (só a versão corrente, suficiente pra lista).
+  getAllResults:     (token: string, filters?: { projectId?: string; sampleId?: string }) => {
+                       const params = new URLSearchParams()
+                       if (filters?.projectId) params.set('project_id', filters.projectId)
+                       if (filters?.sampleId) params.set('sample_id', filters.sampleId)
+                       const qs = params.toString()
+                       return apiFetchWithToken<ResultListItem[]>(`/api/v2/lab/results${qs ? `?${qs}` : ''}`, token)
+                     },
   correctResult:     (token: string, resultId: string, body: CorrectResultBody) =>
                        apiFetchWithToken<LabResult>(`/api/v2/lab/results/${resultId}/correct`, token, {
                          method: 'POST', body: JSON.stringify(body),
@@ -143,6 +159,11 @@ export const api = {
   // ── Laudos (reports) (4snt/rizoma#12) ───────────────────────────────────
   getReports:        (token: string, projectId: string) =>
                        apiFetchWithToken<ReportListItem[]>(`/api/v2/projects/${projectId}/reports`, token),
+  // Cross-project: mesma decisão de getAllSamples — 1 query.
+  getAllReports:     (token: string, projectId?: string) =>
+                       apiFetchWithToken<ReportListItemAgg[]>(
+                         `/api/v2/reports${projectId ? `?project_id=${projectId}` : ''}`, token,
+                       ),
   createReport:      (token: string, projectId: string, body: CreateReportBody) =>
                        apiFetchWithToken<Report>(`/api/v2/projects/${projectId}/reports`, token, {
                          method: 'POST', body: JSON.stringify(body),
@@ -380,6 +401,14 @@ export interface LimsSample {
   recorded_at: string
   notes: string | null
   created_at: string
+}
+
+// `SampleOut` + código/nome do projeto — espelha
+// app/modules/lims/schemas.py::SampleListItemOut. Só existe pra alimentar
+// GET /api/v2/lims/samples (listagem cross-project).
+export interface LimsSampleListItem extends LimsSample {
+  project_code: string
+  project_name: string
 }
 
 export interface CreateLimsSampleBody {
@@ -651,6 +680,21 @@ export interface LabResult {
   history: ResultVersion[]
 }
 
+// Só a versão corrente (sem `history`) + código de amostra/projeto —
+// espelha app/modules/laboratory/schemas.py::ResultListItemOut. Só existe
+// pra alimentar GET /api/v2/lab/results (listagem cross-project/amostra).
+export interface ResultListItem {
+  id: string
+  sample_id: string
+  sample_code: string
+  project_id: string
+  project_code: string
+  analyte: string
+  method: string | null
+  created_at: string
+  current: ResultVersion
+}
+
 // ── Laudos (reports) ─────────────────────────────────────────────────────
 
 export interface CreateReportBody {
@@ -668,6 +712,14 @@ export interface ReportListItem {
   sha256: string | null
   signed_at: string | null
   created_at: string
+}
+
+// `ReportListItem` + código/nome do projeto — espelha
+// app/modules/reports/schemas.py::ReportListItemAgg. Só existe pra
+// alimentar GET /api/v2/reports (listagem cross-project).
+export interface ReportListItemAgg extends ReportListItem {
+  project_code: string
+  project_name: string
 }
 
 export interface Report extends ReportListItem {

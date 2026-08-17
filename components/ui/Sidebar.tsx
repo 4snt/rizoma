@@ -16,24 +16,33 @@ const NAV_ITEMS = [
   { href: '/docs',         label: 'API Docs',     icon: '◫' },
 ]
 
-// LIMS (v2/lims, v2/inventory, v2/interop, v2/laboratory, v2/reports) —
-// ver epic 4snt/rizoma#5. Cresce conforme #7-#12 forem fechando.
-//
-// Não existe mais "Pesquisadores" separado (ADR-011, rizoma-backend):
-// pesquisador é sempre um organization_member de verdade, gerenciado em
-// Usuários (ADMIN_NAV_ITEMS abaixo) — não um contato solto com página própria.
+// Seções básicas de LIMS (v2/lims, v2/laboratory, v2/reports, v2/inventory,
+// v2/interop) — reorganizado pra bater com o que todo LIMS de mercado
+// separa como item próprio de menu (LabWare/STARLIMS/Thermo SampleManager/
+// QBench): Projetos, Amostras, Resultados, Laudos, Reagentes, Equipamentos,
+// Interop. Cadeia de custódia não tem entrada própria — vive dentro da
+// tela de Amostra (não é módulo separado em nenhum LIMS pesquisado).
+// Aberto pra qualquer papel autenticado por ora; cada tela já esconde
+// botão de escrita via can() — quem pode *ver* cada seção fica pra depois
+// (ver tech-debt/label-solicitacoes-corridas.md-like: decisão adiada de
+// propósito, não esquecida).
 const LIMS_NAV_ITEMS = [
-  { href: '/inventory', label: 'Inventário', icon: '▢' },
-  { href: '/interop',   label: 'Interop',    icon: '⇄' },
+  { href: '/projects',              label: 'Projetos',      icon: '◫' },
+  { href: '/samples',                label: 'Amostras',      icon: '▤' },
+  { href: '/results',                label: 'Resultados',    icon: '≡' },
+  { href: '/reports',                label: 'Laudos',        icon: '▦' },
+  { href: '/inventory/reagentes',    label: 'Reagentes',     icon: '▢' },
+  { href: '/inventory/equipamentos', label: 'Equipamentos',  icon: '⚙' },
+  { href: '/interop',                label: 'Interop',       icon: '⇄' },
 ]
 
+// Não existe mais "Pesquisadores" separado (ADR-011, rizoma-backend):
+// pesquisador é sempre um organization_member de verdade, gerenciado em
+// Usuários abaixo — não um contato solto com página própria.
+//
+// Único item que continua restrito a org_admin (o resto da reorganização
+// ficou aberto de propósito, gating fino fica pra depois).
 const ADMIN_NAV_ITEMS = [
-  // "Novo Projeto" tinha saído do menu num commit anterior (a página
-  // /admin/projects/new continuava existindo e funcionando, só ficou sem
-  // atalho). Restaurado junto da correção do bug isAdmin (ver auth.ts).
-  { href: '/admin/projects/new', label: 'Novo Projeto', icon: '⊕' },
-  // Único cadastro de pessoa do sistema agora: convidar, trocar papel,
-  // remover — e é aqui que se escolhe o "pesquisador" de um projeto.
   { href: '/admin/members', label: 'Usuários', icon: '◉' },
 ]
 
