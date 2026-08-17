@@ -696,10 +696,10 @@ import { ORG_ROLES, type OrgRole, type RoleLabelEntry } from './role-labels'
 export { ORG_ROLES }
 export type { OrgRole }
 
-// Espelha PERMISSIONS["project:write"] em app/shared/context.py — quem pode
-// criar projeto de verdade no backend. Centralizado aqui pra não repetir o
-// erro de comparar com um role literal errado (era "admin", nunca batia).
-export const PROJECT_WRITE_ROLES: OrgRole[] = ['org_admin', 'coordinator']
+// PROJECT_WRITE_ROLES foi substituído por `can(role, 'project:write')` de
+// lib/permissions.ts — mesma fonte de verdade do resto do gating (samples,
+// inventory, interop), em vez de uma lista de papéis duplicada só pra
+// projeto. Ver lib/permissions.ts.
 
 export interface Member {
   id: string
