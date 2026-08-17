@@ -33,7 +33,7 @@ async function loginWithBackend(googleAccessToken: string) {
   return res.json() as Promise<{
     access_token: string
     user: { email: string; name: string }
-    organizations: { role: string; role_labels: { label: string; role: string }[] }[]
+    organizations: { role: string; role_labels: { label: string; roles: string[] }[] }[]
   }>
 }
 
