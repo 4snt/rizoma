@@ -1,69 +1,123 @@
 'use client'
 
-import { useParams, useSearchParams } from 'next/navigation'
+/**
+ * Verificação pública de laudo — destino do QR Code impresso no PDF.
+ * Sem autenticação: não usa OrgProvider nem token (o endpoint é público).
+ */
+
+import { useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
-import useSWR from 'swr'
-import { api } from '@/lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { apiV2Client, type ReportVerification } from '@/lib/api-v2'
 
-function VerifyContent() {
-  const params = useParams()
-  const id = params?.id as string
-  const search = useSearchParams()
-  const hash = search.get('hash') ?? undefined
-
-  const { data, error, isLoading } = useSWR(
-    id ? ['verify', id, hash] : null,
-    () => api.verifyReport(id, hash),
-  )
-
+function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{
-      minHeight: '100vh', background: 'var(--bg)', display: 'flex',
-      alignItems: 'center', justifyContent: 'center', padding: 24,
-    }}>
-      <div style={{
-        background: 'var(--surface)', border: '1px solid var(--border)',
-        borderRadius: 'var(--shape-md)', padding: '40px 36px', width: '100%', maxWidth: 420,
-        display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center', textAlign: 'center',
-      }}>
-        <div style={{ fontSize: 32 }}>🧬</div>
-        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--cyan)' }}>Rizoma · Verificação de Laudo</div>
-
-        {isLoading && <div style={{ fontSize: 13, color: 'var(--text-3)' }}>Verificando...</div>}
-
-        {error && (
-          <div style={{ fontSize: 13, color: 'var(--red)' }}>Erro ao verificar este laudo.</div>
-        )}
-
-        {data && (
-          <>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 700,
-              color: data.valid ? 'var(--green)' : 'var(--red)',
-            }}>
-              {data.valid ? '✓ Documento autêntico' : '✗ Documento inválido'}
-            </div>
-            {data.valid ? (
-              <div style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.7 }}>
-                {data.code && <div><span className="mono">{data.code}</span> · v{data.version}</div>}
-                {data.project && <div>{data.project}</div>}
-                {data.organization && <div>{data.organization}</div>}
-                {data.signed_at && <div>Assinado em {new Date(data.signed_at).toLocaleString('pt-BR')}</div>}
-              </div>
-            ) : (
-              <div style={{ fontSize: 13, color: 'var(--text-3)' }}>{data.detail ?? 'Este documento não pôde ser confirmado.'}</div>
-            )}
-          </>
-        )}
-      </div>
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+      <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{label}</span>
+      <span style={{ fontSize: 12, color: 'var(--text)', fontFamily: 'var(--mono)', textAlign: 'right', wordBreak: 'break-all' }}>
+        {value}
+      </span>
     </div>
   )
 }
 
-export default function VerifyPage() {
+function VerifyContent({ reportId }: { reportId: string }) {
+  const searchParams = useSearchParams()
+  const hash = searchParams.get('hash') ?? ''
+
+  const verification = useQuery<ReportVerification>({
+    queryKey: ['verify', reportId, hash],
+    queryFn: () => apiV2Client.verifyReport(reportId, hash),
+    enabled: Boolean(hash),
+    retry: false,
+  })
+
+  if (!hash) {
+    return (
+      <p style={{ color: 'var(--amber)', fontSize: 13 }}>
+        Falta o parâmetro <code>?hash=</code>. Use o QR Code impresso no laudo.
+      </p>
+    )
+  }
+
+  if (verification.isLoading) return <div className="skeleton" style={{ height: 120 }} />
+
+  if (verification.error) {
+    return (
+      <div>
+        <div className="badge badge-red" style={{ fontSize: 13, padding: '6px 12px' }}>
+          ✗ Não foi possível verificar
+        </div>
+        <p style={{ color: 'var(--text-2)', fontSize: 12, marginTop: 10 }}>
+          {verification.error instanceof Error ? verification.error.message : 'Erro desconhecido'}
+        </p>
+      </div>
+    )
+  }
+
+  const v = verification.data
+  if (!v) return null
+
   return (
-    <Suspense>
-      <VerifyContent />
-    </Suspense>
+    <div>
+      <div
+        className={`badge ${v.valid ? 'badge-green' : 'badge-red'}`}
+        style={{ fontSize: 14, padding: '8px 14px', marginBottom: 18 }}
+      >
+        {v.valid ? '✓ Laudo autêntico' : '✗ Laudo NÃO confere'}
+      </div>
+
+      {!v.valid && v.reason && (
+        <p style={{ color: 'var(--red)', fontSize: 12, marginBottom: 14 }}>{v.reason}</p>
+      )}
+
+      <Row label="Laudo" value={v.title ?? '—'} />
+      <Row label="Código" value={v.code ?? '—'} />
+      <Row label="Projeto" value={v.project_code ?? '—'} />
+      <Row label="Organização" value={v.organization ?? '—'} />
+      <Row
+        label="Assinado em"
+        value={v.signed_at ? new Date(v.signed_at).toLocaleString('pt-BR') : '—'}
+      />
+      <Row label="Assinado por" value={v.signed_by ?? '—'} />
+      <Row label="Hash (SHA-256)" value={v.hash ?? hash} />
+    </div>
+  )
+}
+
+export default function VerifyReportPage({ params }: { params: { id: string } }) {
+  return (
+    <main
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+        background: 'var(--bg)',
+      }}
+    >
+      <div
+        className="card"
+        style={{ width: '100%', maxWidth: 560 }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <span style={{ fontSize: 20 }}>🧬</span>
+          <span style={{ fontWeight: 700, color: 'var(--cyan)' }}>Rizoma</span>
+        </div>
+        <h1 style={{ fontSize: 18, marginBottom: 4 }}>Verificação de laudo</h1>
+        <p style={{ fontSize: 12, color: 'var(--text-2)', marginBottom: 20 }}>
+          Confere o hash impresso no PDF contra o registro assinado no servidor.
+        </p>
+
+        <Suspense fallback={<div className="skeleton" style={{ height: 120 }} />}>
+          <VerifyContent reportId={params.id} />
+        </Suspense>
+
+        <p style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 20 }}>
+          Página pública · UFVJM — Bioinformática
+        </p>
+      </div>
+    </main>
   )
 }

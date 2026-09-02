@@ -3,6 +3,8 @@ import './globals.css'
 import { SessionProviderWrapper } from '@/components/ui/SessionProviderWrapper'
 import { AppShell } from '@/components/ui/AppShell'
 import { ThemeProvider } from '@/components/ui/ThemeProvider'
+import { QueryProvider } from '@/components/providers/QueryProvider'
+import { OrgProvider } from '@/components/providers/OrgProvider'
 
 export const metadata: Metadata = {
   title: 'Rizoma',
@@ -15,9 +17,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <ThemeProvider attribute="data-theme" defaultTheme="light" enableSystem={false}>
           <SessionProviderWrapper>
-            <AppShell>
-              {children}
-            </AppShell>
+            <QueryProvider>
+              <OrgProvider>
+                <AppShell>
+                  {children}
+                </AppShell>
+              </OrgProvider>
+            </QueryProvider>
           </SessionProviderWrapper>
         </ThemeProvider>
       </body>
