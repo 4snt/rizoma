@@ -187,3 +187,9 @@ A imagem Docker é multi-stage (builder → runner) com output `standalone`:
 docker build -t ghcr.io/org/bio-frontend:latest .
 docker push ghcr.io/org/bio-frontend:latest
 ```
+
+Para a comparação ao vivo com o SENAITE na defesa do TCC, esse frontend roda
+num cluster k8s local em vez de ir pro GHCR — build + import direto no
+containerd, gerenciado pelo Terraform em
+[`rizoma-backend/infra/terraform-local`](https://github.com/4snt/rizoma-backend/tree/master/infra/terraform-local)
+(ver ADR-014 no backend).
