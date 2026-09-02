@@ -20,7 +20,7 @@ const inp: React.CSSProperties = {
 export default function MetagenomicsHubPage() {
   const { data: session } = useSession()
   const token = (session as any)?.accessToken as string | undefined
-  const isAdmin = (session as any)?.role === 'admin'
+  const isAdmin = (session as any)?.role === 'org_admin'
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -32,7 +32,7 @@ export default function MetagenomicsHubPage() {
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
 
-  const { data: projects, mutate: mutateProjects } = useSWR('meta-hub-projects', () => api.getProjects(), { refreshInterval: 30000 })
+  const { data: projects, mutate: mutateProjects } = useSWR(token ? 'meta-hub-projects' : null, () => api.getProjects(token!), { refreshInterval: 30000 })
   const selectedProject = projects?.find((p: Project) => p.id === selectedId)
 
   function selectProject(id: string) {
@@ -229,7 +229,7 @@ export default function MetagenomicsHubPage() {
               {activeTab === 'dada2' && (
                 <Dada2Tab projectId={selectedProject.id} project={selectedProject} token={token} onProjectChange={mutateProjects} />
               )}
-              {activeTab === 'graficos' && <ChartsTab projectId={selectedProject.id} project={selectedProject} />}
+              {activeTab === 'graficos' && <ChartsTab projectId={selectedProject.id} project={selectedProject} token={token} />}
             </div>
           )}
         </div>

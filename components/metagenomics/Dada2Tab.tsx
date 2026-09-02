@@ -68,10 +68,11 @@ export default function Dada2Tab({ projectId, project, token, onProjectChange }:
   }
 
   async function runDada2() {
+    if (!token) { alert('Sem permissão — faça login'); return }
     setGenerating(true)
     try {
       const payload = (paramsDraft ?? project.dada2_params ?? {}) as Record<string, unknown>
-      await api.enqueueJob(projectId, 'dada2_pipeline', undefined, payload)
+      await api.enqueueJob(token, projectId, 'dada2_pipeline', undefined, payload)
     } catch (e) { alert((e as Error).message) } finally { setGenerating(false) }
   }
 

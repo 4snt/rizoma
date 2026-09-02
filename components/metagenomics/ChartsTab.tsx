@@ -19,11 +19,12 @@ const sel: React.CSSProperties = {
 interface Props {
   projectId: string
   project: Project
+  token?: string
 }
 
 /** Aba Gráficos — autocontida: lista de análises, tabela de abundância e
  *  gráficos de diversidade/PCoA/biomarcadores (dados via SWR próprio). */
-export default function ChartsTab({ projectId, project }: Props) {
+export default function ChartsTab({ projectId, project, token }: Props) {
   const [level, setLevel] = useState<TaxLevel>('genus')
   const [showRel, setShowRel] = useState(false)
   const [search, setSearch] = useState('')
@@ -36,7 +37,7 @@ export default function ChartsTab({ projectId, project }: Props) {
   const artifactOid = artifacts?.available?.[0]?.phyloseq_oid
 
   const { data: jobs, mutate: mutateJobs } = useSWR(
-    `meta-jobs-${projectId}`, () => api.getJobs(projectId), { refreshInterval: 5000 })
+    token ? `meta-jobs-${projectId}` : null, () => api.getJobs(token!, projectId), { refreshInterval: 5000 })
   const { data: asvData, isLoading: asvLoading } = useSWR(
     hasResults ? `meta-asv-${projectId}-${level}` : null, () => api.getAsvTable(projectId, level))
   const { data: divData } = useSWR(
@@ -55,10 +56,11 @@ export default function ChartsTab({ projectId, project }: Props) {
   }, [jobs])
 
   async function runType(analysisType: string) {
+    if (!token) { alert('Sem permissão — faça login'); return }
     if (!artifactOid) { alert('Gere o phyloseq (aba DADA2) antes de rodar as análises.'); return }
     setRunningType(analysisType)
     try {
-      await api.enqueueJob(projectId, analysisType, Number(artifactOid))
+      await api.enqueueJob(token, projectId, analysisType, Number(artifactOid))
       await mutateJobs()
     } catch (e) { alert((e as Error).message) } finally { setRunningType(null) }
   }
