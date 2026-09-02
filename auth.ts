@@ -80,7 +80,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       // /verify é o destino do QR Code impresso no laudo — quem escaneia não
       // tem conta nenhuma no Rizoma, precisa ficar público (backend também
       // expõe /api/v2/reports/{id}/verify sem auth, de propósito).
-      const isPublic = path.startsWith("/login") || path.startsWith("/api/auth") || path.startsWith("/auth/popup-callback") || path.startsWith("/auth/popup-start") || path.startsWith("/verify")
+      const isPublic = path.startsWith("/login") || path.startsWith("/api/auth") || path.startsWith("/auth/popup-callback") || path.startsWith("/auth/popup-start") || path.startsWith("/verify") || path.startsWith("/privacidade") || path.startsWith("/termos")
       if (!session && !isPublic) return false
       // Papel real do backend é "org_admin" (app/shared/context.py
       // PERMISSIONS), nunca "admin" sozinho — comparar com "admin" nunca

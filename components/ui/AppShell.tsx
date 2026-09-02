@@ -8,9 +8,10 @@ import { Footer } from '@/components/ui/Footer'
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const isLoginPage = pathname === '/login'
-  // /verify é o destino público do QR Code do laudo — sem sidebar/nav
-  // interna, quem escaneia não é usuário do Rizoma.
-  const isPublicPage = isLoginPage || pathname?.startsWith('/verify')
+  // /verify é o destino público do QR Code do laudo; /privacidade e /termos
+  // são exigidos pela tela de consentimento OAuth do Google — nenhum dos
+  // três é acessado por usuário logado do Rizoma.
+  const isPublicPage = isLoginPage || pathname?.startsWith('/verify') || pathname?.startsWith('/privacidade') || pathname?.startsWith('/termos')
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // Fecha sidebar ao navegar
