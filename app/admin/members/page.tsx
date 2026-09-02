@@ -348,7 +348,7 @@ export default function MembersPage() {
           <div className="section-title">Rótulos de papel</div>
           <p style={{ fontSize: 12, color: 'var(--text-3)', margin: '0 0 12px' }}>
             Adicione os rótulos que este laboratório usa e marque quais dos 8 papéis técnicos cada
-            um cobre — um rótulo pode cobrir vários papéis (ex.: "Bolsista" = Técnico de campo +
+            um cobre — um rótulo pode cobrir vários papéis (ex.: &ldquo;Bolsista&rdquo; = Técnico de campo +
             Técnico de laboratório), e o mesmo papel pode aparecer em mais de um rótulo. A permissão
             real nunca muda, só o texto exibido na tela.
           </p>
