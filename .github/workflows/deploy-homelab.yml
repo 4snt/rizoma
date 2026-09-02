@@ -1,0 +1,32 @@
+name: Deploy homelab (frontend)
+
+# Builda a imagem, importa no containerd do microk8s do homelab e reinicia
+# o deployment — o mesmo fluxo do scripts/deploy-local.sh (rizoma-backend),
+# só que disparado por push em vez de rodado à mão no servidor.
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-homelab-frontend
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: build + import + rollout (bio-frontend)
+    runs-on: [self-hosted, rizoma-homelab]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build da imagem
+        run: docker build -q -t rizoma-frontend:local -t "rizoma-frontend:git-${GITHUB_SHA::7}" .
+
+      - name: Importar no containerd do microk8s
+        run: docker save rizoma-frontend:local | sudo microk8s ctr --namespace k8s.io images import -
+
+      - name: Rollout do deployment
+        run: |
+          export KUBECONFIG="$HOME/.kube/config-microk8s"
+          kubectl -n bioinformatica rollout restart deployment/bio-frontend
+          kubectl -n bioinformatica rollout status deployment/bio-frontend --timeout=300s
