@@ -20,7 +20,26 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build da imagem
-        run: docker build -q -t rizoma-frontend:local -t "rizoma-frontend:git-${GITHUB_SHA::7}" .
+        # NEXT_PUBLIC_* ficam embutidos no bundle JS em build-time — sem
+        # passar isso, o fetch feito PELO NAVEGADOR cai no default do
+        # Dockerfile (localhost:8000) e páginas como /reports e
+        # /admin/members ficam com a lista vazia, mesmo com login OK (login
+        # roda no servidor via NextAuth, com uma env var server-side
+        # separada — só por isso ele não é afetado pelo mesmo bug).
+        #
+        # Vem de Settings → Secrets and variables → Actions → Variables
+        # (repository variable), não hardcoded — troca de ambiente
+        # (homologação, outro domínio) é só mudar a variável, sem editar
+        # workflow. Sem a variável configurada, cai no domínio atual do
+        # homelab.
+        env:
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL || 'https://rizoma.flipafile.com' }}
+          NEXT_PUBLIC_WS_URL: ${{ vars.NEXT_PUBLIC_WS_URL || 'wss://rizoma.flipafile.com' }}
+        run: |
+          docker build -q -t rizoma-frontend:local -t "rizoma-frontend:git-${GITHUB_SHA::7}" \
+            --build-arg "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}" \
+            --build-arg "NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL}" \
+            .
 
       - name: Importar no containerd do microk8s
         run: docker save rizoma-frontend:local | sudo microk8s ctr --namespace k8s.io images import -
