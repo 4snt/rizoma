@@ -70,7 +70,6 @@ export const qk = {
     ['v2', 'samples', orgId, projectId] as const,
   custody: (orgId: string | null, sampleId: string) => ['v2', 'custody', orgId, sampleId] as const,
   files: (orgId: string | null, projectId: string) => ['v2', 'files', orgId, projectId] as const,
-  jobs: (orgId: string | null, projectId: string) => ['v2', 'jobs', orgId, projectId] as const,
   results: (orgId: string | null, sampleId: string) => ['v2', 'results', orgId, sampleId] as const,
   reports: (orgId: string | null, projectId: string) =>
     ['v2', 'reports', orgId, projectId] as const,

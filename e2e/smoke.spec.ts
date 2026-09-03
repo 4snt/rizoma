@@ -16,13 +16,8 @@ test('página de login renderiza entrada Google', async ({ page }) => {
   await expect(page.getByText(/google/i)).toBeVisible()
 })
 
-test('rota protegida /metagenomics exige autenticação', async ({ page }) => {
-  await page.goto('/metagenomics')
-  await expect(page).toHaveURL(/\/login/)
-})
-
 // Cobre o middleware de proteção em várias rotas de uma vez.
-for (const rota of ['/projects', '/jobs', '/analysis/qualquer', '/admin/users']) {
+for (const rota of ['/projects', '/samples', '/reports', '/admin/users']) {
   test(`rota protegida ${rota} redireciona para /login sem sessão`, async ({ page }) => {
     await page.goto(rota)
     await expect(page).toHaveURL(/\/login/)
@@ -37,15 +32,15 @@ test('/admin sem sessão não vaza conteúdo administrativo', async ({ page }) =
 })
 
 /**
- * Fluxo autenticado (cadastro → upload → DADA2 → tabela): depende de login
- * Google, então fica documentado e desabilitado por padrão. Para rodar,
- * injete uma sessão de teste (storageState) e remova o .skip.
+ * Fluxo autenticado (criar projeto → registrar amostra → cadeia de custódia):
+ * depende de login Google, então fica documentado e desabilitado por padrão.
+ * Para rodar, injete uma sessão de teste (storageState) e remova o .skip.
  */
 test.describe('fluxo autenticado (requer sessão de teste)', () => {
-  test.skip('cadastra projeto, roda DADA2 e vê a tabela de ASVs', async () => {
-    // 1. /metagenomics → aba Projeto → ⊕ Novo Projeto → preenche e cria
-    // 2. Upload de FASTQs (pasta) → pares detectados
-    // 3. Aba DADA2 → checklist verde → ▶ Rodar DADA2 → barra de progresso
-    // 4. Aba Gráficos → tabela de abundância populada
+  test.skip('cria projeto, registra amostra e avança a custódia', async () => {
+    // 1. /projects → ⊕ Novo Projeto → código, nome, descrição → cria
+    // 2. Redireciona para /projects/{id}/samples → ＋ Registrar Amostra
+    // 3. /samples/{id} → transição planned → collected
+    // 4. Cadeia de custódia mostra o evento com hash íntegro
   })
 })

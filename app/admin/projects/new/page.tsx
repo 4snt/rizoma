@@ -1,189 +1,47 @@
 'use client'
 
+// Cadastro de projeto. Só a identificação: código, nome, descrição e o
+// pesquisador responsável. Não há mais escolha de marcador (16S/ITS),
+// catálogo de análise nem parâmetros de DADA2 — a metagenômica saiu do
+// escopo, e o projeto virou o que sempre foi no LIMS: o agregador sob o qual
+// as amostras são registradas.
+
 import { useState } from 'react'
+import useSWR from 'swr'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 import { can } from '@/lib/permissions'
-import { ANALYSES_CATALOG, type AnalysisDefinition } from '@/lib/analyses-catalog'
+import { roleLabel } from '@/lib/role-labels'
 
-type MarkerType = '16S' | 'ITS'
-
-interface AnalysisState {
-  enabled: boolean
-  charts: Set<string>
-}
-
-function Badge({ children, color }: { children: React.ReactNode; color: 'blue' | 'purple' }) {
-  const bg = color === 'blue' ? 'rgba(6,182,212,0.12)' : 'rgba(168,85,247,0.12)'
-  const border = color === 'blue' ? 'rgba(6,182,212,0.3)' : 'rgba(168,85,247,0.3)'
-  const text = color === 'blue' ? 'var(--cyan)' : '#a855f7'
-  return (
-    <span style={{
-      display: 'inline-block',
-      padding: '2px 8px',
-      borderRadius: 5,
-      fontSize: 11,
-      fontWeight: 700,
-      letterSpacing: '0.04em',
-      background: bg,
-      border: `1px solid ${border}`,
-      color: text,
-    }}>
-      {children}
-    </span>
-  )
-}
-
-function AnalysisCard({
-  def,
-  state,
-  onChange,
-}: {
-  def: AnalysisDefinition
-  state: AnalysisState
-  onChange: (enabled: boolean, charts: Set<string>) => void
-}) {
-  function toggleEnabled() {
-    if (state.enabled) {
-      onChange(false, new Set())
-    } else {
-      // enable with all charts pre-selected
-      onChange(true, new Set(def.charts.map(c => c.key)))
-    }
-  }
-
-  function toggleChart(chartKey: string) {
-    const next = new Set(state.charts)
-    if (next.has(chartKey)) {
-      next.delete(chartKey)
-    } else {
-      next.add(chartKey)
-    }
-    onChange(state.enabled, next)
-  }
-
-  return (
-    <div style={{
-      border: `1px solid ${state.enabled ? 'var(--cyan)' : 'var(--border)'}`,
-      borderRadius: 10,
-      overflow: 'hidden',
-      transition: 'border-color 150ms ease',
-      background: state.enabled ? 'rgba(6,182,212,0.04)' : 'var(--surface)',
-    }}>
-      {/* Header */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          padding: '12px 16px',
-          cursor: 'pointer',
-          userSelect: 'none',
-        }}
-        onClick={toggleEnabled}
-      >
-        {/* Checkbox */}
-        <div style={{
-          width: 18,
-          height: 18,
-          borderRadius: 4,
-          border: `2px solid ${state.enabled ? 'var(--cyan)' : 'var(--border)'}`,
-          background: state.enabled ? 'var(--cyan)' : 'transparent',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-          transition: 'all 150ms ease',
-        }}>
-          {state.enabled && (
-            <span style={{ color: '#050d1a', fontSize: 11, fontWeight: 900, lineHeight: 1 }}>✓</span>
-          )}
-        </div>
-
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{def.label}</div>
-          <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 1 }}>{def.description}</div>
-        </div>
-
-        <span style={{ fontSize: 11, color: 'var(--text-3)' }}>
-          {def.charts.length} gráfico{def.charts.length !== 1 ? 's' : ''}
-        </span>
-      </div>
-
-      {/* Charts (only when enabled) */}
-      {state.enabled && def.charts.length > 0 && (
-        <div style={{
-          borderTop: '1px solid var(--border)',
-          padding: '10px 16px 12px 46px',
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 8,
-        }}>
-          {def.charts.map(chart => {
-            const active = state.charts.has(chart.key)
-            return (
-              <button
-                key={chart.key}
-                type="button"
-                onClick={() => toggleChart(chart.key)}
-                style={{
-                  padding: '4px 10px',
-                  borderRadius: 6,
-                  border: `1px solid ${active ? 'var(--cyan)' : 'var(--border)'}`,
-                  background: active ? 'rgba(6,182,212,0.1)' : 'var(--bg)',
-                  color: active ? 'var(--cyan)' : 'var(--text-3)',
-                  fontSize: 12,
-                  fontWeight: active ? 600 : 400,
-                  cursor: 'pointer',
-                  transition: 'all 150ms ease',
-                }}
-              >
-                {active ? '◉' : '○'} {chart.label}
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
+const labelStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: 'var(--text-3)',
+  fontWeight: 600,
+  letterSpacing: '0.07em',
+  textTransform: 'uppercase',
+  display: 'block',
+  marginBottom: 5,
 }
 
 export default function NewProjectPage() {
   const { data: session } = useSession()
   const router = useRouter()
+  const token = session?.accessToken
 
-  const [code, setCode]                   = useState('')
-  const [name, setName]                   = useState('')
-  const [description, setDescription]     = useState('')
-  const [bioprojectAcc, setBioprojectAcc] = useState('')
-  const [markerType, setMarkerType]       = useState<MarkerType>('16S')
-  const [submitting, setSubmitting]       = useState(false)
-  const [error, setError]                 = useState<string | null>(null)
+  const [code, setCode]               = useState('')
+  const [name, setName]               = useState('')
+  const [description, setDescription] = useState('')
+  const [customerUserId, setCustomerUserId] = useState('')
+  const [submitting, setSubmitting]   = useState(false)
+  const [error, setError]             = useState<string | null>(null)
 
-  // analyses state: key → { enabled, charts }
-  const initAnalysesState = (mt: MarkerType): Record<string, AnalysisState> => {
-    const result: Record<string, AnalysisState> = {}
-    for (const def of ANALYSES_CATALOG[mt]) {
-      result[def.key] = { enabled: false, charts: new Set() }
-    }
-    return result
-  }
-  const [analysesState, setAnalysesState] = useState<Record<string, AnalysisState>>(
-    () => initAnalysesState('16S')
+  // O responsável é sempre um membro real da organização (ADR-011) — daí a
+  // lista vir de /identity/members, e não de um cadastro solto de contato.
+  const { data: members } = useSWR(
+    token ? ['members', token] : null,
+    () => api.getMembers(token!),
   )
-
-  function handleMarkerTypeChange(mt: MarkerType) {
-    setMarkerType(mt)
-    setAnalysesState(initAnalysesState(mt))
-  }
-
-  function handleAnalysisChange(key: string, enabled: boolean, charts: Set<string>) {
-    setAnalysesState(prev => ({ ...prev, [key]: { enabled, charts } }))
-  }
-
-  const catalog = ANALYSES_CATALOG[markerType]
-  const enabledCount = Object.values(analysesState).filter(s => s.enabled).length
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -193,12 +51,6 @@ export default function NewProjectPage() {
       setError('Código e nome são obrigatórios.')
       return
     }
-    if (enabledCount === 0) {
-      setError('Selecione ao menos uma análise.')
-      return
-    }
-
-    const token = session?.accessToken ?? ''
     if (!token) {
       setError('Sessão expirada. Faça login novamente.')
       return
@@ -206,22 +58,15 @@ export default function NewProjectPage() {
 
     setSubmitting(true)
     try {
-      const analyses = catalog
-        .filter(def => analysesState[def.key]?.enabled)
-        .map(def => ({
-          analysis_type: def.key,
-          charts: Array.from(analysesState[def.key].charts),
-        }))
-
       const { id } = await api.createProject(token, {
-        code:                 code.trim().toUpperCase(),
-        name:                 name.trim(),
-        description:          description.trim(),
-        marker_type:          markerType,
-        analyses,
+        code:             code.trim().toUpperCase(),
+        name:             name.trim(),
+        description:      description.trim(),
+        customer_user_id: customerUserId || null,
       })
-
-      router.push(`/projects/${id}`)
+      // Direto para as amostras: criar o projeto só existe para poder
+      // registrar amostra nele.
+      router.push(`/projects/${id}/samples`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao criar projeto.')
       setSubmitting(false)
@@ -240,12 +85,12 @@ export default function NewProjectPage() {
     <div style={{ maxWidth: 720, margin: '0 auto' }}>
       <div className="page-header">
         <div className="page-title">Novo Projeto</div>
-        <div className="page-subtitle">Configure o projeto, as análises e os gráficos gerados</div>
+        <div className="page-subtitle">
+          Identifique o projeto. As amostras são registradas depois, dentro dele.
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
-
-        {/* ── Identificação ── */}
         <section>
           <div className="section-title">Identificação</div>
           <div style={{
@@ -257,12 +102,9 @@ export default function NewProjectPage() {
             flexDirection: 'column',
             gap: 14,
           }}>
-            {/* Code + Marker type */}
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               <div style={{ flex: '0 0 160px' }}>
-                <label style={{ fontSize: 11, color: 'var(--text-3)', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
-                  Código *
-                </label>
+                <label style={labelStyle}>Código *</label>
                 <input
                   type="text"
                   value={code}
@@ -277,14 +119,12 @@ export default function NewProjectPage() {
               </div>
 
               <div style={{ flex: 1, minWidth: 180 }}>
-                <label style={{ fontSize: 11, color: 'var(--text-3)', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
-                  Nome do projeto *
-                </label>
+                <label style={labelStyle}>Nome do projeto *</label>
                 <input
                   type="text"
                   value={name}
                   onChange={e => setName(e.target.value)}
-                  placeholder="Análise fatorial de micobioma"
+                  placeholder="Micobioma de solo sob herbicida"
                   required
                   style={inputStyle}
                   onFocus={e => (e.currentTarget.style.borderColor = 'var(--cyan)')}
@@ -293,15 +133,12 @@ export default function NewProjectPage() {
               </div>
             </div>
 
-            {/* Description */}
             <div>
-              <label style={{ fontSize: 11, color: 'var(--text-3)', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
-                Descrição
-              </label>
+              <label style={labelStyle}>Descrição</label>
               <textarea
                 value={description}
                 onChange={e => setDescription(e.target.value)}
-                placeholder="Objetivo científico e contexto do projeto..."
+                placeholder="Objetivo e contexto do projeto..."
                 rows={3}
                 style={{
                   ...inputStyle,
@@ -315,89 +152,32 @@ export default function NewProjectPage() {
               />
             </div>
 
-            {/* BioProject */}
             <div>
-              <label style={{ fontSize: 11, color: 'var(--text-3)', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
-                BioProject NCBI <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(opcional)</span>
+              <label style={labelStyle}>
+                Responsável{' '}
+                <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
+                  (opcional)
+                </span>
               </label>
-              <input
-                type="text"
-                value={bioprojectAcc}
-                onChange={e => setBioprojectAcc(e.target.value)}
-                placeholder="PRJNA123456"
-                maxLength={20}
-                style={inputStyle}
-                onFocus={e => (e.currentTarget.style.borderColor = 'var(--amber)')}
-                onBlur={e  => (e.currentTarget.style.borderColor = 'var(--border)')}
-              />
-              <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>
-                Vincula o projeto a um BioProject para importar runs SRA diretamente.
-              </div>
-            </div>
-
-            {/* Marker type */}
-            <div>
-              <label style={{ fontSize: 11, color: 'var(--text-3)', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>
-                Marcador *
-              </label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {(['16S', 'ITS'] as const).map(mt => (
-                  <button
-                    key={mt}
-                    type="button"
-                    onClick={() => handleMarkerTypeChange(mt)}
-                    style={{
-                      padding: '8px 20px',
-                      borderRadius: 7,
-                      border: `1px solid ${markerType === mt ? (mt === '16S' ? 'var(--cyan)' : '#a855f7') : 'var(--border)'}`,
-                      background: markerType === mt
-                        ? (mt === '16S' ? 'rgba(6,182,212,0.1)' : 'rgba(168,85,247,0.1)')
-                        : 'var(--bg)',
-                      color: markerType === mt
-                        ? (mt === '16S' ? 'var(--cyan)' : '#a855f7')
-                        : 'var(--text-3)',
-                      fontWeight: markerType === mt ? 700 : 400,
-                      fontSize: 13,
-                      cursor: 'pointer',
-                      transition: 'all 150ms ease',
-                    }}
-                  >
-                    {mt === '16S' ? (
-                      <><Badge color="blue">16S</Badge><span style={{ marginLeft: 8 }}>Primers 515F/806R · SILVA 138</span></>
-                    ) : (
-                      <><Badge color="purple">ITS</Badge><span style={{ marginLeft: 8 }}>Primers ITS1/ITS4 · UNITE v10</span></>
-                    )}
-                  </button>
+              <select
+                value={customerUserId}
+                onChange={e => setCustomerUserId(e.target.value)}
+                style={{ ...inputStyle, fontFamily: 'var(--sans)' }}
+              >
+                <option value="">— sem responsável definido —</option>
+                {(members ?? []).map(m => (
+                  <option key={m.user_id} value={m.user_id}>
+                    {m.name} · {roleLabel(m.role, session?.roleLabels)}
+                  </option>
                 ))}
+              </select>
+              <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>
+                Só membros desta organização. Para trazer alguém novo, use Usuários → convite.
               </div>
             </div>
           </div>
         </section>
 
-        {/* ── Análises ── */}
-        <section>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <div className="section-title" style={{ marginBottom: 0 }}>
-              Análises disponíveis
-            </div>
-            <span style={{ fontSize: 12, color: enabledCount > 0 ? 'var(--cyan)' : 'var(--text-3)' }}>
-              {enabledCount} selecionada{enabledCount !== 1 ? 's' : ''}
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {catalog.map(def => (
-              <AnalysisCard
-                key={def.key}
-                def={def}
-                state={analysesState[def.key] ?? { enabled: false, charts: new Set() }}
-                onChange={(enabled, charts) => handleAnalysisChange(def.key, enabled, charts)}
-              />
-            ))}
-          </div>
-        </section>
-
-        {/* ── Error + Submit ── */}
         {error && (
           <div style={{
             background: 'rgba(239,68,68,0.08)',

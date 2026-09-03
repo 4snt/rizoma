@@ -162,7 +162,6 @@ export type MarkerType = '16S' | 'ITS' | 'RNA'
 
 export type FileCategory = 'fastq' | 'photo' | 'document' | 'report' | 'other'
 
-export type JobStatus = 'queued' | 'running' | 'done' | 'error' | 'cancelled'
 
 /* ── Entidades ──────────────────────────────────────────────────────── */
 
@@ -276,18 +275,6 @@ export interface PresignResponse {
   upload_url: string
   fields: Record<string, string>
   storage_key: string
-}
-
-export interface JobV2 {
-  id: string
-  project_id: string
-  job_type: string
-  status: JobStatus
-  progress_pct?: number | null
-  error?: string | null
-  payload?: Record<string, unknown> | null
-  created_at?: string
-  finished_at?: string | null
 }
 
 export interface LabResult {
@@ -454,19 +441,6 @@ export const apiV2Client = {
     if (params.sample_id) qs.set('sample_id', params.sample_id)
     return apiV2<FileRef[]>(`/api/v2/files?${qs.toString()}`)
   },
-
-  /* jobs */
-  enqueueJob: (
-    input: { project_id: string; job_type: string; payload?: Record<string, unknown> },
-    idempotencyKey?: string
-  ) => apiV2<JobV2>('/api/v2/jobs/enqueue', { method: 'POST', body: input, idempotencyKey }),
-  listJobs: (params: { project_id?: string; status?: JobStatus }) => {
-    const qs = new URLSearchParams()
-    if (params.project_id) qs.set('project_id', params.project_id)
-    if (params.status) qs.set('status', params.status)
-    return apiV2<JobV2[]>(`/api/v2/jobs?${qs.toString()}`)
-  },
-  getJob: (id: string) => apiV2<JobV2>(`/api/v2/jobs/${id}`),
 
   /* lab */
   createResult: (sampleId: string, input: CreateResultInput, idempotencyKey?: string) =>

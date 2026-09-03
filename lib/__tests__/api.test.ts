@@ -31,29 +31,20 @@ describe('api client', () => {
     expect(out).toEqual([{ id: '1' }])
   })
 
-  it('searchDegs monta a query string com q e project', async () => {
-    const spy = mockFetch(() => ({ json: () => Promise.resolve([]) }))
-    await api.searchDegs('BRCA', 'proj-1')
-    const calledUrl = spy.mock.calls[0][0] as string
-    expect(calledUrl).toContain('/api/v1/analysis/search/degs?')
-    expect(calledUrl).toContain('q=BRCA')
-    expect(calledUrl).toContain('project=proj-1')
-  })
-
   it('erro HTTP vira Error com status e path', async () => {
     mockFetch(() => ({ ok: false, status: 500 }))
-    await expect(api.getWorkerStatus()).rejects.toThrow(/API error 500/)
+    await expect(api.getProjects('tok')).rejects.toThrow(/API error 500/)
   })
 
   it('apiFetchWithToken injeta o Bearer', async () => {
     const spy = mockFetch(() => ({ json: () => Promise.resolve({ ok: true }) }))
-    await apiFetchWithToken('/api/v1/auth/me', 'tok-123')
+    await apiFetchWithToken('/api/v2/identity/me', 'tok-123')
     const init = spy.mock.calls[0][1] as RequestInit
     expect((init.headers as Record<string, string>)['Authorization']).toBe('Bearer tok-123')
   })
 
   it('apiFetchWithToken traduz 401 para Unauthorized', async () => {
     mockFetch(() => ({ ok: false, status: 401 }))
-    await expect(apiFetchWithToken('/api/v1/auth/me', 'tok')).rejects.toThrow('Unauthorized')
+    await expect(apiFetchWithToken('/api/v2/identity/me', 'tok')).rejects.toThrow('Unauthorized')
   })
 })
