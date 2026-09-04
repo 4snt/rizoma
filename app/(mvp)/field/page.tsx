@@ -2,11 +2,19 @@
 
 import { useCallback, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiV2Client, SAMPLE_MATRICES, type ProjectV2, type SampleMatrix } from '@/lib/api-v2'
+import {
+  apiV2Client,
+  ORGANISM_TYPES,
+  SAMPLE_MATRICES,
+  type OrganismType,
+  type ProjectV2,
+  type SampleMatrix,
+} from '@/lib/api-v2'
 import { enqueueAndFlush, uuidv7, type OutboxOperation } from '@/lib/offline-outbox'
 import { qk } from '@/lib/query-client'
 import { useOrg } from '@/components/providers/OrgProvider'
 import { useOutbox } from '@/components/mvp/OutboxBadge'
+import { BarcodeScanner } from '@/components/ui/BarcodeScanner'
 import {
   Button,
   Card,
@@ -35,7 +43,9 @@ export default function FieldPage() {
   const [projectId, setProjectId] = useState('')
   const [code, setCode] = useState('')
   const [matrix, setMatrix] = useState<SampleMatrix>('solo')
+  const [organismType, setOrganismType] = useState<OrganismType | ''>('')
   const [notes, setNotes] = useState('')
+  const [scanning, setScanning] = useState(false)
   const [coords, setCoords] = useState<Coords | null>(null)
   const [gpsError, setGpsError] = useState<string | null>(null)
   const [gpsBusy, setGpsBusy] = useState(false)
@@ -78,6 +88,7 @@ export default function FieldPage() {
     onSuccess: () => {
       setCode('')
       setNotes('')
+      setOrganismType('')
       setCoords(null)
       setSaved((n) => n + 1)
       void queryClient.invalidateQueries({ queryKey: qk.samples(organizationId, projectId) })
@@ -86,6 +97,15 @@ export default function FieldPage() {
 
   return (
     <div className="fade-in">
+      {scanning && (
+        <BarcodeScanner
+          onScan={(value) => {
+            setCode(value)
+            setScanning(false)
+          }}
+          onClose={() => setScanning(false)}
+        />
+      )}
       <PageHeader
         title="Modo Campo"
         subtitle="Funciona sem sinal. A coleta é gravada no dispositivo e sincroniza ao voltar a rede."
@@ -125,8 +145,9 @@ export default function FieldPage() {
                 lat: coords?.lat,
                 lon: coords?.lon,
                 occurred_at: new Date().toISOString(),
+                notes: notes.trim() || undefined,
+                organism_type: organismType || undefined,
               },
-              notes: notes.trim() || undefined,
             })
           }}
         >
@@ -144,18 +165,43 @@ export default function FieldPage() {
               </Select>
             </Field>
             <Field label="Código da amostra">
-              <Input
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="INO-S07"
-                required
-              />
+              <div style={{ display: 'flex', gap: 6 }}>
+                <Input
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder="NEBIM0001"
+                  required
+                  style={{ flex: 1, minWidth: 0 }}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setScanning(true)}
+                  title="Ler etiqueta com a câmera"
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  📷 Escanear
+                </Button>
+              </div>
             </Field>
             <Field label="Matriz">
               <Select value={matrix} onChange={(e) => setMatrix(e.target.value as SampleMatrix)}>
                 {SAMPLE_MATRICES.map((m) => (
                   <option key={m} value={m}>
                     {m}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Tipo de organismo" hint="Opcional">
+              <Select
+                value={organismType}
+                onChange={(e) => setOrganismType(e.target.value as OrganismType | '')}
+              >
+                <option value="">—</option>
+                {ORGANISM_TYPES.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
                   </option>
                 ))}
               </Select>
@@ -175,10 +221,7 @@ export default function FieldPage() {
             {gpsError && <span style={{ color: 'var(--red)', fontSize: 12 }}>{gpsError}</span>}
           </div>
 
-          <Field
-            label="Observações"
-            hint="Registradas apenas no dispositivo — o contrato da API v2 ainda não tem campo para observações."
-          >
+          <Field label="Observações" hint="Opcional">
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
           </Field>
 

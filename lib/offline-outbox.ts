@@ -50,8 +50,8 @@ export interface CreateSampleOperation {
   projectId: string
   input: CreateSampleInput & { id: string }
   /**
-   * Observações de campo. O contrato da API v2 ainda não tem campo para isso,
-   * então NÃO são enviadas — ficam registradas localmente até o backend expor o campo.
+   * @deprecated Observações agora vão em `input.notes` (a API aceita o campo).
+   * Mantido só para entradas antigas já persistidas na outbox — `send()` faz o merge.
    */
   notes?: string
 }
@@ -132,7 +132,12 @@ async function send(entry: OutboxEntry): Promise<SampleV2> {
   switch (op.type) {
     case 'sample.create':
       // O Idempotency-Key faz o reenvio ser seguro: a API devolve o mesmo resultado.
-      return apiV2Client.createSample(op.projectId, op.input, entry.id)
+      // Compat: entradas antigas guardavam `notes` fora do input.
+      return apiV2Client.createSample(
+        op.projectId,
+        op.notes && !op.input.notes ? { ...op.input, notes: op.notes } : op.input,
+        entry.id
+      )
   }
 }
 

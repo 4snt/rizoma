@@ -129,18 +129,53 @@ export const SAMPLE_STATUSES = [
   'received',
   'accepted',
   'rejected',
+  'processing',
+  'analyzed',
+  'stored',
+  'consumed',
+  'disposed',
 ] as const
 export type SampleStatus = (typeof SAMPLE_STATUSES)[number]
 
-/** Transições válidas: planned→collected→in_transit→received→(accepted|rejected). */
+/**
+ * Transições válidas — espelho 1:1 de `TRANSICOES` em
+ * `rizoma-backend/api/app/modules/lims/custody.py`. Mude lá primeiro.
+ */
 export const SAMPLE_TRANSITIONS: Record<SampleStatus, readonly SampleStatus[]> = {
   planned: ['collected'],
   collected: ['in_transit'],
   in_transit: ['received'],
   received: ['accepted', 'rejected'],
-  accepted: [],
-  rejected: [],
+  accepted: ['processing', 'stored'],
+  rejected: ['disposed'],
+  processing: ['analyzed', 'consumed'],
+  analyzed: ['stored', 'disposed'],
+  stored: ['processing', 'disposed'],
+  consumed: [],
+  disposed: [],
 }
+
+/* Vocabulário biológico (espelho dos Literals em `lims/schemas.py`). */
+export const ORGANISM_TYPES = ['bacteria', 'fungo', 'outro'] as const
+export type OrganismType = (typeof ORGANISM_TYPES)[number]
+
+export const COLONIA_FORMAS = ['circular', 'irregular', 'filamentosa', 'rizoide', 'fusiforme', 'puntiforme'] as const
+export type ColoniaForma = (typeof COLONIA_FORMAS)[number]
+
+export const COLONIA_ELEVACOES = ['plana', 'elevada', 'convexa', 'pulvinada', 'umbonada', 'crateriforme'] as const
+export type ColoniaElevacao = (typeof COLONIA_ELEVACOES)[number]
+
+export const COLONIA_MARGENS = ['inteira', 'ondulada', 'lobada', 'filiforme', 'crespa'] as const
+export type ColoniaMargem = (typeof COLONIA_MARGENS)[number]
+
+export const COLONIA_TEXTURAS = ['lisa', 'rugosa', 'mucoide', 'seca', 'granular', 'viscosa'] as const
+export type ColoniaTextura = (typeof COLONIA_TEXTURAS)[number]
+
+export const COLONIA_OPACIDADES = ['opaca', 'translucida', 'transparente'] as const
+export type ColoniaOpacidade = (typeof COLONIA_OPACIDADES)[number]
+
+export const GENE_PURPOSES = ['identificacao', 'resistencia', 'producao_enzima', 'outro'] as const
+export type GenePurpose = (typeof GENE_PURPOSES)[number]
 
 export function nextStatuses(current: SampleStatus): readonly SampleStatus[] {
   return SAMPLE_TRANSITIONS[current] ?? []
@@ -238,6 +273,16 @@ export interface SampleV2 {
   lon?: number | null
   occurred_at?: string | null
   created_at?: string
+  notes?: string | null
+  /* Campos biológicos (amostras de cultura microbiana) */
+  organism_type?: OrganismType | null
+  colonia_forma?: ColoniaForma | null
+  colonia_elevacao?: ColoniaElevacao | null
+  colonia_margem?: ColoniaMargem | null
+  colonia_cor?: string | null
+  colonia_textura?: ColoniaTextura | null
+  colonia_tamanho_mm?: number | null
+  colonia_opacidade?: ColoniaOpacidade | null
 }
 
 export interface CustodyEvent {
@@ -356,6 +401,8 @@ export interface CreateSampleInput {
   lat?: number
   lon?: number
   occurred_at?: string
+  notes?: string
+  organism_type?: OrganismType
 }
 
 export interface CreateResultInput {

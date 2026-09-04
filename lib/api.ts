@@ -59,6 +59,26 @@ export const api = {
                        }),
   getCustodyChain:   (token: string, sampleId: string) =>
                        apiFetchWithToken<CustodyChain>(`/api/v2/lims/samples/${sampleId}/custody`, token),
+  // Dados biológicos do isolado: morfologia de colônia, testes bioquímicos e genes.
+  updateSampleMorphology: (token: string, sampleId: string, body: SampleMorphologyUpdate) =>
+                       apiFetchWithToken<LimsSample>(`/api/v2/lims/samples/${sampleId}/morphology`, token, {
+                         method: 'PATCH',
+                         body: JSON.stringify(body),
+                       }),
+  getSampleTests:    (token: string, sampleId: string) =>
+                       apiFetchWithToken<SampleTest[]>(`/api/v2/lims/samples/${sampleId}/tests`, token),
+  createSampleTest:  (token: string, sampleId: string, body: CreateSampleTestBody) =>
+                       apiFetchWithToken<SampleTest>(`/api/v2/lims/samples/${sampleId}/tests`, token, {
+                         method: 'POST',
+                         body: JSON.stringify(body),
+                       }),
+  getSampleGenes:    (token: string, sampleId: string) =>
+                       apiFetchWithToken<SampleGene[]>(`/api/v2/lims/samples/${sampleId}/genes`, token),
+  createSampleGene:  (token: string, sampleId: string, body: CreateSampleGeneBody) =>
+                       apiFetchWithToken<SampleGene>(`/api/v2/lims/samples/${sampleId}/genes`, token, {
+                         method: 'POST',
+                         body: JSON.stringify(body),
+                       }),
   // Cross-project: projeto é filtro opcional, não pré-requisito — 1 query
   // no backend, substitui a agregação client-side projeto-por-projeto que
   // as telas /samples, /reports e /results faziam antes.
@@ -272,6 +292,118 @@ export interface LimsSample {
   recorded_at: string
   notes: string | null
   created_at: string
+  // Dados biológicos (isolados bacterianos/fúngicos) — morfologia de colônia
+  // segundo Bergey. Todos opcionais; null quando a amostra não é um isolado.
+  organism_type: OrganismType | null
+  colonia_forma: ColoniaForma | null
+  colonia_elevacao: ColoniaElevacao | null
+  colonia_margem: ColoniaMargem | null
+  colonia_cor: string | null
+  colonia_textura: ColoniaTextura | null
+  colonia_tamanho_mm: number | null
+  colonia_opacidade: ColoniaOpacidade | null
+}
+
+// ── LIMS: dados biológicos da amostra (morfologia, testes, genes) ───────────
+
+export type OrganismType = 'bacteria' | 'fungo' | 'outro'
+export type ColoniaForma =
+  | 'circular' | 'irregular' | 'filamentosa' | 'rizoide' | 'fusiforme' | 'puntiforme'
+export type ColoniaElevacao =
+  | 'plana' | 'elevada' | 'convexa' | 'pulvinada' | 'umbonada' | 'crateriforme'
+export type ColoniaMargem = 'inteira' | 'ondulada' | 'lobada' | 'filiforme' | 'crespa'
+export type ColoniaTextura = 'lisa' | 'rugosa' | 'mucoide' | 'seca' | 'granular' | 'viscosa'
+export type ColoniaOpacidade = 'opaca' | 'translucida' | 'transparente'
+export type GenePurpose = 'identificacao' | 'resistencia' | 'producao_enzima' | 'outro'
+
+export const ORGANISM_TYPES = ['bacteria', 'fungo', 'outro'] as const satisfies readonly OrganismType[]
+export const COLONIA_FORMAS = ['circular', 'irregular', 'filamentosa', 'rizoide', 'fusiforme', 'puntiforme'] as const satisfies readonly ColoniaForma[]
+export const COLONIA_ELEVACOES = ['plana', 'elevada', 'convexa', 'pulvinada', 'umbonada', 'crateriforme'] as const satisfies readonly ColoniaElevacao[]
+export const COLONIA_MARGENS = ['inteira', 'ondulada', 'lobada', 'filiforme', 'crespa'] as const satisfies readonly ColoniaMargem[]
+export const COLONIA_TEXTURAS = ['lisa', 'rugosa', 'mucoide', 'seca', 'granular', 'viscosa'] as const satisfies readonly ColoniaTextura[]
+export const COLONIA_OPACIDADES = ['opaca', 'translucida', 'transparente'] as const satisfies readonly ColoniaOpacidade[]
+export const GENE_PURPOSES = ['identificacao', 'resistencia', 'producao_enzima', 'outro'] as const satisfies readonly GenePurpose[]
+
+export const ORGANISM_TYPE_LABELS: Record<OrganismType, string> = {
+  bacteria: 'Bactéria', fungo: 'Fungo', outro: 'Outro',
+}
+export const COLONIA_FORMA_LABELS: Record<ColoniaForma, string> = {
+  circular: 'Circular', irregular: 'Irregular', filamentosa: 'Filamentosa',
+  rizoide: 'Rizoide', fusiforme: 'Fusiforme', puntiforme: 'Puntiforme',
+}
+export const COLONIA_ELEVACAO_LABELS: Record<ColoniaElevacao, string> = {
+  plana: 'Plana', elevada: 'Elevada', convexa: 'Convexa',
+  pulvinada: 'Pulvinada', umbonada: 'Umbonada', crateriforme: 'Crateriforme',
+}
+export const COLONIA_MARGEM_LABELS: Record<ColoniaMargem, string> = {
+  inteira: 'Inteira', ondulada: 'Ondulada', lobada: 'Lobada', filiforme: 'Filiforme', crespa: 'Crespa',
+}
+export const COLONIA_TEXTURA_LABELS: Record<ColoniaTextura, string> = {
+  lisa: 'Lisa', rugosa: 'Rugosa', mucoide: 'Mucoide', seca: 'Seca', granular: 'Granular', viscosa: 'Viscosa',
+}
+export const COLONIA_OPACIDADE_LABELS: Record<ColoniaOpacidade, string> = {
+  opaca: 'Opaca', translucida: 'Translúcida', transparente: 'Transparente',
+}
+export const GENE_PURPOSE_LABELS: Record<GenePurpose, string> = {
+  identificacao: 'Identificação', resistencia: 'Resistência',
+  producao_enzima: 'Produção de enzima', outro: 'Outro',
+}
+
+// PATCH /samples/{id}/morphology — subconjunto qualquer dos 8 campos.
+export interface SampleMorphologyUpdate {
+  organism_type?: OrganismType | null
+  colonia_forma?: ColoniaForma | null
+  colonia_elevacao?: ColoniaElevacao | null
+  colonia_margem?: ColoniaMargem | null
+  colonia_cor?: string | null
+  colonia_textura?: ColoniaTextura | null
+  colonia_tamanho_mm?: number | null
+  colonia_opacidade?: ColoniaOpacidade | null
+}
+
+// Testes bioquímicos/enzimáticos — catálogo aberto (test_name é texto livre).
+export interface SampleTest {
+  id: string
+  sample_id: string
+  test_name: string
+  result: string | null
+  method: string | null
+  tested_at: string | null
+  notes: string | null
+  created_by: string | null
+  created_at: string
+}
+
+export interface CreateSampleTestBody {
+  test_name: string
+  result?: string | null
+  method?: string | null
+  tested_at?: string | null
+  notes?: string | null
+}
+
+export interface SampleGene {
+  id: string
+  sample_id: string
+  gene: string
+  purpose: GenePurpose
+  result: string | null
+  ncbi_accession: string | null
+  method: string | null
+  tested_at: string | null
+  notes: string | null
+  created_by: string | null
+  created_at: string
+}
+
+export interface CreateSampleGeneBody {
+  gene: string
+  purpose: GenePurpose
+  result?: string | null
+  ncbi_accession?: string | null
+  method?: string | null
+  tested_at?: string | null
+  notes?: string | null
 }
 
 // `SampleOut` + código/nome do projeto — espelha
@@ -293,6 +425,14 @@ export interface CreateLimsSampleBody {
   lon?: number | null
   occurred_at?: string | null
   notes?: string | null
+  organism_type?: OrganismType | null
+  colonia_forma?: ColoniaForma | null
+  colonia_elevacao?: ColoniaElevacao | null
+  colonia_margem?: ColoniaMargem | null
+  colonia_cor?: string | null
+  colonia_textura?: ColoniaTextura | null
+  colonia_tamanho_mm?: number | null
+  colonia_opacidade?: ColoniaOpacidade | null
 }
 
 export interface SampleTransitionBody {

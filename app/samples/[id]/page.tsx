@@ -5,8 +5,13 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import useSWR from 'swr'
 import { useSession } from 'next-auth/react'
-import { api, type LimsSampleStatus, type CustodyEvent, type LabResult } from '@/lib/api'
+import { api, type LimsSampleStatus, type CustodyEvent, type LabResult, ORGANISM_TYPE_LABELS } from '@/lib/api'
 import { can } from '@/lib/permissions'
+import { MorphologyPanel } from '@/components/samples/MorphologyPanel'
+import { TestsPanel } from '@/components/samples/TestsPanel'
+import { GenesPanel } from '@/components/samples/GenesPanel'
+
+type Tab = 'custody' | 'results' | 'morphology' | 'tests' | 'genes'
 
 const STATUS_OPTIONS: LimsSampleStatus[] = [
   'planned', 'collected', 'in_transit', 'received', 'accepted',
@@ -270,6 +275,7 @@ export default function SampleDetailPage() {
     () => api.getCustodyChain(token!, id),
   )
 
+  const [tab, setTab] = useState<Tab>('custody')
   const [showTransition, setShowTransition] = useState(false)
   const [toStatus, setToStatus] = useState<LimsSampleStatus>('collected')
   const [notes, setNotes] = useState('')
@@ -317,6 +323,9 @@ export default function SampleDetailPage() {
               <h1 className="page-title mono" style={{ color: 'var(--cyan)' }}>{sample.code}</h1>
               <span className="badge badge-blue">{sample.matrix}</span>
               <span className="badge badge-cyan">{sample.status}</span>
+              {sample.organism_type && (
+                <span className="badge badge-purple">{ORGANISM_TYPE_LABELS[sample.organism_type]}</span>
+              )}
             </div>
           ) : (
             <div className="skeleton" style={{ height: 28, width: 200 }} />
@@ -389,35 +398,82 @@ export default function SampleDetailPage() {
         </div>
       )}
 
-      {token && can(role, 'result:read') && <ResultsPanel token={token} role={role} sampleId={id} />}
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-        <span className="section-title" style={{ margin: 0 }}>Cadeia de Custódia</span>
-        {custody && (
-          <span className={`badge ${custody.chain_valid ? 'badge-green' : 'badge-red'}`}>
-            {custody.chain_valid ? '✓ íntegra' : '✗ violada'}
-          </span>
-        )}
+      {/* Abas: custódia / resultados / morfologia / testes / genes */}
+      <div role="tablist" style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 20, overflowX: 'auto' }}>
+        {TABS.filter(t => t.id !== 'results' || can(role, 'result:read')).map(t => {
+          const active = tab === t.id
+          return (
+            <button
+              key={t.id} role="tab" aria-selected={active}
+              onClick={() => setTab(t.id)}
+              style={{
+                padding: '8px 14px', background: 'transparent', border: 'none',
+                borderBottom: `2px solid ${active ? 'var(--cyan)' : 'transparent'}`,
+                color: active ? 'var(--cyan)' : 'var(--text-2)', fontSize: 13, fontWeight: 600,
+                cursor: 'pointer', whiteSpace: 'nowrap', marginBottom: -1,
+              }}
+            >
+              {t.label}
+            </button>
+          )
+        })}
       </div>
 
-      {!custody && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {[1, 2].map(i => <div key={i} className="skeleton" style={{ height: 60, borderRadius: 8 }} />)}
-        </div>
+      {tab === 'results' && token && can(role, 'result:read') && (
+        <ResultsPanel token={token} role={role} sampleId={id} />
       )}
 
-      {custody && custody.events.length === 0 && (
-        <div className="empty-state" style={{ padding: '32px 16px' }}>
-          <span className="empty-state-icon">◌</span>
-          <span className="empty-state-title">Nenhum evento de custódia ainda.</span>
-        </div>
+      {tab === 'morphology' && token && (
+        sample
+          ? <MorphologyPanel token={token} role={role} sample={sample} onChanged={() => mutateSample()} />
+          : <div className="skeleton" style={{ height: 120, borderRadius: 8 }} />
       )}
 
-      {custody && custody.events.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {custody.events.map(e => <CustodyRow key={e.id} e={e} />)}
-        </div>
+      {tab === 'tests' && token && <TestsPanel token={token} role={role} sampleId={id} />}
+
+      {tab === 'genes' && token && (
+        <GenesPanel token={token} role={role} sampleId={id} organismType={sample?.organism_type} />
+      )}
+
+      {tab === 'custody' && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+            <span className="section-title" style={{ margin: 0 }}>Cadeia de Custódia</span>
+            {custody && (
+              <span className={`badge ${custody.chain_valid ? 'badge-green' : 'badge-red'}`}>
+                {custody.chain_valid ? '✓ íntegra' : '✗ violada'}
+              </span>
+            )}
+          </div>
+
+          {!custody && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {[1, 2].map(i => <div key={i} className="skeleton" style={{ height: 60, borderRadius: 8 }} />)}
+            </div>
+          )}
+
+          {custody && custody.events.length === 0 && (
+            <div className="empty-state" style={{ padding: '32px 16px' }}>
+              <span className="empty-state-icon">◌</span>
+              <span className="empty-state-title">Nenhum evento de custódia ainda.</span>
+            </div>
+          )}
+
+          {custody && custody.events.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {custody.events.map(e => <CustodyRow key={e.id} e={e} />)}
+            </div>
+          )}
+        </>
       )}
     </>
   )
 }
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'custody', label: 'Custódia' },
+  { id: 'results', label: 'Resultados' },
+  { id: 'morphology', label: 'Morfologia' },
+  { id: 'tests', label: 'Testes' },
+  { id: 'genes', label: 'Genes' },
+]

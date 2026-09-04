@@ -11,8 +11,12 @@ import {
   type LimsSampleMatrix,
   type LimsSampleStatus,
   type SampleImportResult,
+  type OrganismType,
+  ORGANISM_TYPES,
+  ORGANISM_TYPE_LABELS,
 } from '@/lib/api'
 import { can } from '@/lib/permissions'
+import { BarcodeScanner } from '@/components/ui/BarcodeScanner'
 
 const MATRIX_OPTIONS: LimsSampleMatrix[] = [
   'solo', 'sedimento', 'agua', 'tecido_vegetal', 'raiz', 'folha',
@@ -50,7 +54,9 @@ export default function ProjectSamplesPage() {
   const [form, setForm] = useState({
     code: '', matrix: 'solo' as LimsSampleMatrix,
     treatment_group: '', replicate: '', notes: '',
+    organism_type: '' as OrganismType | '',
   })
+  const [scanning, setScanning] = useState(false)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
 
@@ -66,9 +72,10 @@ export default function ProjectSamplesPage() {
         treatment_group: form.treatment_group.trim() || null,
         replicate: form.replicate ? Number(form.replicate) : null,
         notes: form.notes.trim() || null,
+        organism_type: form.organism_type || null,
       })
       await mutate()
-      setForm({ code: '', matrix: 'solo', treatment_group: '', replicate: '', notes: '' })
+      setForm({ code: '', matrix: 'solo', treatment_group: '', replicate: '', notes: '', organism_type: '' })
       setShowCreate(false)
     } catch (e) {
       setCreateError(e instanceof Error ? e.message : 'Erro ao registrar amostra.')
@@ -204,15 +211,41 @@ export default function ProjectSamplesPage() {
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
             <div style={{ flex: '1 1 160px' }}>
               <label style={{ display: 'block', fontSize: 12, color: 'var(--text-2)', marginBottom: 6 }}>Código *</label>
-              <input
-                type="text" value={form.code}
-                onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input
+                  type="text" value={form.code}
+                  onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
+                  style={{
+                    flex: 1, minWidth: 0, background: 'var(--bg)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--shape-sm)', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--mono)',
+                    padding: '7px 12px', outline: 'none', boxSizing: 'border-box',
+                  }}
+                />
+                <button
+                  type="button" onClick={() => setScanning(true)} title="Escanear código de barras"
+                  style={{
+                    flexShrink: 0, padding: '7px 10px', background: 'var(--surface-2)', border: '1px solid var(--border)',
+                    borderRadius: 'var(--shape-sm)', color: 'var(--text-2)', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap',
+                  }}
+                >
+                  📷 Escanear
+                </button>
+              </div>
+            </div>
+            <div style={{ flex: '1 1 150px' }}>
+              <label style={{ display: 'block', fontSize: 12, color: 'var(--text-2)', marginBottom: 6 }}>Tipo de organismo</label>
+              <select
+                value={form.organism_type}
+                onChange={e => setForm(f => ({ ...f, organism_type: e.target.value as OrganismType | '' }))}
                 style={{
-                  width: '100%', background: 'var(--bg)', border: '1px solid var(--border)',
+                  width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)',
                   borderRadius: 'var(--shape-sm)', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--mono)',
-                  padding: '7px 12px', outline: 'none', boxSizing: 'border-box',
+                  padding: '7px 10px',
                 }}
-              />
+              >
+                <option value="">—</option>
+                {ORGANISM_TYPES.map(o => <option key={o} value={o}>{ORGANISM_TYPE_LABELS[o]}</option>)}
+              </select>
             </div>
             <div style={{ flex: '1 1 160px' }}>
               <label style={{ display: 'block', fontSize: 12, color: 'var(--text-2)', marginBottom: 6 }}>Matriz</label>
@@ -282,6 +315,13 @@ export default function ProjectSamplesPage() {
         </div>
       )}
 
+      {scanning && (
+        <BarcodeScanner
+          onScan={(code) => { setForm(f => ({ ...f, code })); setScanning(false) }}
+          onClose={() => setScanning(false)}
+        />
+      )}
+
       {isLoading && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {[1, 2, 3].map(i => <div key={i} className="skeleton" style={{ height: 44, borderRadius: 8 }} />)}
@@ -306,6 +346,7 @@ export default function ProjectSamplesPage() {
               <tr style={{ color: 'var(--text-3)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
                 <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>Código</th>
                 <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>Matriz</th>
+                <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>Organismo</th>
                 <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>Grupo</th>
                 <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>Status</th>
                 <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>Registrada em</th>
@@ -317,6 +358,9 @@ export default function ProjectSamplesPage() {
                 <tr key={s.id} style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '10px 12px' }}><span className="mono">{s.code}</span></td>
                   <td style={{ padding: '10px 12px', color: 'var(--text-2)' }}>{s.matrix}</td>
+                  <td style={{ padding: '10px 12px', color: 'var(--text-2)' }}>
+                    {s.organism_type ? ORGANISM_TYPE_LABELS[s.organism_type] : '—'}
+                  </td>
                   <td style={{ padding: '10px 12px', color: 'var(--text-2)' }}>{s.treatment_group ?? '—'}</td>
                   <td style={{ padding: '10px 12px' }}>{statusBadge(s.status)}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--text-3)', fontSize: 12 }}>
