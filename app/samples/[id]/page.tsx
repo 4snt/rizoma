@@ -5,8 +5,16 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import useSWR from 'swr'
 import { useSession } from 'next-auth/react'
-import { api, type LimsSampleStatus, type CustodyEvent, type LabResult } from '@/lib/api'
+import { api, type LimsSampleStatus, type CustodyEvent, type LabResult, ORGANISM_TYPE_LABELS } from '@/lib/api'
 import { can } from '@/lib/permissions'
+import { MorphologyPanel } from '@/components/samples/MorphologyPanel'
+import { TestsPanel } from '@/components/samples/TestsPanel'
+import { GenesPanel } from '@/components/samples/GenesPanel'
+import { SampleSheetPanel } from '@/components/samples/SampleSheetPanel'
+import { AliquotsPanel } from '@/components/samples/AliquotsPanel'
+import { SampleFilesPanel } from '@/components/samples/SampleFilesPanel'
+
+type Tab = 'sheet' | 'custody' | 'morphology' | 'tests' | 'genes' | 'aliquots' | 'files' | 'results'
 
 const STATUS_OPTIONS: LimsSampleStatus[] = [
   'planned', 'collected', 'in_transit', 'received', 'accepted',
@@ -270,6 +278,7 @@ export default function SampleDetailPage() {
     () => api.getCustodyChain(token!, id),
   )
 
+  const [tab, setTab] = useState<Tab>('sheet')
   const [showTransition, setShowTransition] = useState(false)
   const [toStatus, setToStatus] = useState<LimsSampleStatus>('collected')
   const [notes, setNotes] = useState('')
@@ -313,10 +322,16 @@ export default function SampleDetailPage() {
       <div className="page-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
           {sample ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <h1 className="page-title mono" style={{ color: 'var(--cyan)' }}>{sample.code}</h1>
+              {sample.strain_name && (
+                <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>{sample.strain_name}</span>
+              )}
               <span className="badge badge-blue">{sample.matrix}</span>
               <span className="badge badge-cyan">{sample.status}</span>
+              {sample.organism_type && (
+                <span className="badge badge-purple">{ORGANISM_TYPE_LABELS[sample.organism_type]}</span>
+              )}
             </div>
           ) : (
             <div className="skeleton" style={{ height: 28, width: 200 }} />
@@ -329,16 +344,30 @@ export default function SampleDetailPage() {
           )}
         </div>
         {can(role, 'sample:write') && (
-          <button
-            onClick={() => setShowTransition(v => !v)}
-            style={{
-              background: 'rgba(16,212,138,0.1)', border: '1px solid rgba(16,212,138,0.25)',
-              borderRadius: 'var(--shape-full)', color: 'var(--green)', fontSize: 13, fontWeight: 600,
-              padding: '8px 16px', cursor: 'pointer',
-            }}
-          >
-            {showTransition ? '✕ Fechar' : '▶ Transicionar Status'}
-          </button>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            {sample && (
+              <Link
+                href={`/projects/${sample.project_id}/samples/new?sample=${sample.id}`}
+                style={{
+                  background: 'var(--cyan-dim)', border: '1px solid rgba(0,212,255,0.25)',
+                  borderRadius: 'var(--shape-full)', color: 'var(--cyan)', fontSize: 13, fontWeight: 600,
+                  padding: '8px 16px', textDecoration: 'none', whiteSpace: 'nowrap',
+                }}
+              >
+                Continuar cadastro →
+              </Link>
+            )}
+            <button
+              onClick={() => setShowTransition(v => !v)}
+              style={{
+                background: 'rgba(16,212,138,0.1)', border: '1px solid rgba(16,212,138,0.25)',
+                borderRadius: 'var(--shape-full)', color: 'var(--green)', fontSize: 13, fontWeight: 600,
+                padding: '8px 16px', cursor: 'pointer',
+              }}
+            >
+              {showTransition ? '✕ Fechar' : '▶ Transicionar Status'}
+            </button>
+          </div>
         )}
       </div>
 
@@ -389,35 +418,101 @@ export default function SampleDetailPage() {
         </div>
       )}
 
-      {token && can(role, 'result:read') && <ResultsPanel token={token} role={role} sampleId={id} />}
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-        <span className="section-title" style={{ margin: 0 }}>Cadeia de Custódia</span>
-        {custody && (
-          <span className={`badge ${custody.chain_valid ? 'badge-green' : 'badge-red'}`}>
-            {custody.chain_valid ? '✓ íntegra' : '✗ violada'}
-          </span>
-        )}
+      {/* Abas: ficha / custódia / morfologia / testes / genes / armazenamento / anexos / resultados */}
+      <div role="tablist" style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 20, overflowX: 'auto' }}>
+        {TABS.filter(t => t.id !== 'results' || can(role, 'result:read')).map(t => {
+          const active = tab === t.id
+          return (
+            <button
+              key={t.id} role="tab" aria-selected={active}
+              onClick={() => setTab(t.id)}
+              style={{
+                padding: '8px 14px', background: 'transparent', border: 'none',
+                borderBottom: `2px solid ${active ? 'var(--cyan)' : 'transparent'}`,
+                color: active ? 'var(--cyan)' : 'var(--text-2)', fontSize: 13, fontWeight: 600,
+                cursor: 'pointer', whiteSpace: 'nowrap', marginBottom: -1,
+              }}
+            >
+              {t.label}
+            </button>
+          )
+        })}
       </div>
 
-      {!custody && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {[1, 2].map(i => <div key={i} className="skeleton" style={{ height: 60, borderRadius: 8 }} />)}
-        </div>
+      {tab === 'sheet' && token && (
+        sample
+          ? <SampleSheetPanel token={token} role={role} sample={sample} onChanged={() => mutateSample()} />
+          : <div className="skeleton" style={{ height: 160, borderRadius: 8 }} />
       )}
 
-      {custody && custody.events.length === 0 && (
-        <div className="empty-state" style={{ padding: '32px 16px' }}>
-          <span className="empty-state-icon">◌</span>
-          <span className="empty-state-title">Nenhum evento de custódia ainda.</span>
-        </div>
+      {tab === 'results' && token && can(role, 'result:read') && (
+        <ResultsPanel token={token} role={role} sampleId={id} />
       )}
 
-      {custody && custody.events.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {custody.events.map(e => <CustodyRow key={e.id} e={e} />)}
-        </div>
+      {tab === 'morphology' && token && (
+        sample
+          ? <MorphologyPanel token={token} role={role} sample={sample} onChanged={() => mutateSample()} />
+          : <div className="skeleton" style={{ height: 120, borderRadius: 8 }} />
+      )}
+
+      {tab === 'tests' && token && <TestsPanel token={token} role={role} sampleId={id} />}
+
+      {tab === 'genes' && token && (
+        sample
+          ? <GenesPanel token={token} role={role} sampleId={id} organismType={sample.organism_type} projectId={sample.project_id} />
+          : <div className="skeleton" style={{ height: 120, borderRadius: 8 }} />
+      )}
+
+      {tab === 'aliquots' && token && <AliquotsPanel token={token} role={role} sampleId={id} />}
+
+      {tab === 'files' && (
+        sample
+          ? <SampleFilesPanel projectId={sample.project_id} sampleId={sample.id} />
+          : <div className="skeleton" style={{ height: 120, borderRadius: 8 }} />
+      )}
+
+      {tab === 'custody' && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+            <span className="section-title" style={{ margin: 0 }}>Cadeia de Custódia</span>
+            {custody && (
+              <span className={`badge ${custody.chain_valid ? 'badge-green' : 'badge-red'}`}>
+                {custody.chain_valid ? '✓ íntegra' : '✗ violada'}
+              </span>
+            )}
+          </div>
+
+          {!custody && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {[1, 2].map(i => <div key={i} className="skeleton" style={{ height: 60, borderRadius: 8 }} />)}
+            </div>
+          )}
+
+          {custody && custody.events.length === 0 && (
+            <div className="empty-state" style={{ padding: '32px 16px' }}>
+              <span className="empty-state-icon">◌</span>
+              <span className="empty-state-title">Nenhum evento de custódia ainda.</span>
+            </div>
+          )}
+
+          {custody && custody.events.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {custody.events.map(e => <CustodyRow key={e.id} e={e} />)}
+            </div>
+          )}
+        </>
       )}
     </>
   )
 }
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'sheet', label: 'Ficha' },
+  { id: 'custody', label: 'Custódia' },
+  { id: 'morphology', label: 'Morfologia' },
+  { id: 'tests', label: 'Testes' },
+  { id: 'genes', label: 'Genes' },
+  { id: 'aliquots', label: 'Armazenamento' },
+  { id: 'files', label: 'Anexos' },
+  { id: 'results', label: 'Resultados' },
+]

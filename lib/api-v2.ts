@@ -129,18 +129,53 @@ export const SAMPLE_STATUSES = [
   'received',
   'accepted',
   'rejected',
+  'processing',
+  'analyzed',
+  'stored',
+  'consumed',
+  'disposed',
 ] as const
 export type SampleStatus = (typeof SAMPLE_STATUSES)[number]
 
-/** Transições válidas: planned→collected→in_transit→received→(accepted|rejected). */
+/**
+ * Transições válidas — espelho 1:1 de `TRANSICOES` em
+ * `rizoma-backend/api/app/modules/lims/custody.py`. Mude lá primeiro.
+ */
 export const SAMPLE_TRANSITIONS: Record<SampleStatus, readonly SampleStatus[]> = {
   planned: ['collected'],
   collected: ['in_transit'],
   in_transit: ['received'],
   received: ['accepted', 'rejected'],
-  accepted: [],
-  rejected: [],
+  accepted: ['processing', 'stored'],
+  rejected: ['disposed'],
+  processing: ['analyzed', 'consumed'],
+  analyzed: ['stored', 'disposed'],
+  stored: ['processing', 'disposed'],
+  consumed: [],
+  disposed: [],
 }
+
+/* Vocabulário biológico (espelho dos Literals em `lims/schemas.py`). */
+export const ORGANISM_TYPES = ['bacteria', 'fungo', 'outro'] as const
+export type OrganismType = (typeof ORGANISM_TYPES)[number]
+
+export const COLONIA_FORMAS = ['circular', 'irregular', 'filamentosa', 'rizoide', 'fusiforme', 'puntiforme'] as const
+export type ColoniaForma = (typeof COLONIA_FORMAS)[number]
+
+export const COLONIA_ELEVACOES = ['plana', 'elevada', 'convexa', 'pulvinada', 'umbonada', 'crateriforme'] as const
+export type ColoniaElevacao = (typeof COLONIA_ELEVACOES)[number]
+
+export const COLONIA_MARGENS = ['inteira', 'ondulada', 'lobada', 'filiforme', 'crespa'] as const
+export type ColoniaMargem = (typeof COLONIA_MARGENS)[number]
+
+export const COLONIA_TEXTURAS = ['lisa', 'rugosa', 'mucoide', 'seca', 'granular', 'viscosa'] as const
+export type ColoniaTextura = (typeof COLONIA_TEXTURAS)[number]
+
+export const COLONIA_OPACIDADES = ['opaca', 'translucida', 'transparente'] as const
+export type ColoniaOpacidade = (typeof COLONIA_OPACIDADES)[number]
+
+export const GENE_PURPOSES = ['identificacao', 'resistencia', 'producao_enzima', 'outro'] as const
+export type GenePurpose = (typeof GENE_PURPOSES)[number]
 
 export function nextStatuses(current: SampleStatus): readonly SampleStatus[] {
   return SAMPLE_TRANSITIONS[current] ?? []
@@ -158,10 +193,20 @@ export const ORG_ROLES = [
 ] as const
 export type OrgRole = (typeof ORG_ROLES)[number]
 
-export type MarkerType = '16S' | 'ITS' | 'RNA'
-
-export type FileCategory = 'fastq' | 'photo' | 'document' | 'report' | 'other'
-
+/** Espelha modules/files/schemas.py::FileCategory. */
+export type FileCategory =
+  | 'fastq_r1'
+  | 'fastq_r2'
+  | 'phyloseq'
+  | 'result'
+  | 'report'
+  | 'field_photo'
+  | 'document'
+  | 'other'
+  | 'fasta'
+  | 'chromatogram'
+  | 'gel_image'
+  | 'colony_photo'
 
 /* ── Entidades ──────────────────────────────────────────────────────── */
 
@@ -208,21 +253,16 @@ export interface AuthResponse {
   organizations: Organization[]
 }
 
-export interface Customer {
-  id: string
-  name: string
-  document?: string | null
-  contact_email?: string | null
-  created_at?: string
-}
-
+/** Espelha modules/lims/schemas.py::ProjectOut. */
 export interface ProjectV2 {
   id: string
-  customer_id?: string | null
+  organization_id?: string
+  customer_user_id?: string | null
   code: string
   name: string
   description?: string | null
-  marker_type?: MarkerType | null
+  status?: string
+  created_by?: string | null
   created_at?: string
 }
 
@@ -238,6 +278,22 @@ export interface SampleV2 {
   lon?: number | null
   occurred_at?: string | null
   created_at?: string
+  notes?: string | null
+  /* Campos biológicos (amostras de cultura microbiana) */
+  organism_type?: OrganismType | null
+  colonia_forma?: ColoniaForma | null
+  colonia_elevacao?: ColoniaElevacao | null
+  colonia_margem?: ColoniaMargem | null
+  colonia_cor?: string | null
+  colonia_textura?: ColoniaTextura | null
+  colonia_tamanho_mm?: number | null
+  colonia_opacidade?: ColoniaOpacidade | null
+  /* Identificação do isolado */
+  strain_name?: string | null
+  isolation_source?: string | null
+  host_species?: string | null
+  host_cultivar?: string | null
+  collection_site?: string | null
 }
 
 export interface CustodyEvent {
@@ -260,13 +316,14 @@ export interface FileRef {
   id: string
   project_id: string
   sample_id?: string | null
+  sample_gene_id?: string | null
   category: FileCategory | string
   original_name: string
   mime_type?: string | null
   storage_key?: string | null
   size_bytes?: number | null
   sha256?: string | null
-  status?: string | null
+  upload_status?: string | null
   created_at?: string
 }
 
@@ -304,19 +361,6 @@ export interface ResultWithHistory {
   history: ResultVersion[]
 }
 
-export interface Report {
-  id: string
-  project_id: string
-  title: string
-  code?: string | null
-  status?: 'draft' | 'signed' | string
-  hash?: string | null
-  signed_at?: string | null
-  signed_by?: string | null
-  download_url?: string | null
-  created_at?: string
-}
-
 export interface ReportVerification {
   valid: boolean
   report_id?: string
@@ -332,20 +376,6 @@ export interface ReportVerification {
 
 /* ── Payloads ───────────────────────────────────────────────────────── */
 
-export interface CreateCustomerInput {
-  name: string
-  document?: string
-  contact_email?: string
-}
-
-export interface CreateProjectInput {
-  customer_id?: string
-  code: string
-  name: string
-  description?: string
-  marker_type?: MarkerType
-}
-
 export interface CreateSampleInput {
   /** UUIDv7 gerado no cliente (necessário para o modo offline). */
   id?: string
@@ -356,6 +386,13 @@ export interface CreateSampleInput {
   lat?: number
   lon?: number
   occurred_at?: string
+  notes?: string
+  organism_type?: OrganismType
+  strain_name?: string | null
+  isolation_source?: string | null
+  host_species?: string | null
+  host_cultivar?: string | null
+  collection_site?: string | null
 }
 
 export interface CreateResultInput {
@@ -392,16 +429,9 @@ export const apiV2Client = {
   createInvitation: (input: { email: string; role: OrgRole }) =>
     apiV2<Invitation>('/api/v2/identity/invitations', { method: 'POST', body: input }),
 
-  /* lims — customers */
-  listCustomers: () => apiV2<Customer[]>('/api/v2/lims/customers'),
-  createCustomer: (input: CreateCustomerInput, idempotencyKey?: string) =>
-    apiV2<Customer>('/api/v2/lims/customers', { method: 'POST', body: input, idempotencyKey }),
-
-  /* lims — projects */
+  /* lims — projects (criação vive em lib/api.ts::createProject, usada por /projects/new) */
   listProjects: () => apiV2<ProjectV2[]>('/api/v2/lims/projects'),
   getProject: (id: string) => apiV2<ProjectV2>(`/api/v2/lims/projects/${id}`),
-  createProject: (input: CreateProjectInput, idempotencyKey?: string) =>
-    apiV2<ProjectV2>('/api/v2/lims/projects', { method: 'POST', body: input, idempotencyKey }),
 
   /* lims — samples */
   listSamples: (projectId: string) =>
@@ -425,6 +455,7 @@ export const apiV2Client = {
   presignFile: (input: {
     project_id: string
     sample_id?: string
+    sample_gene_id?: string
     category: string
     original_name: string
     mime_type?: string
@@ -435,10 +466,11 @@ export const apiV2Client = {
       body: sha256 ? { sha256 } : {},
     }),
   downloadFile: (fileId: string) => apiV2<{ url: string }>(`/api/v2/files/${fileId}/download`),
-  listFiles: (params: { project_id?: string; sample_id?: string }) => {
+  listFiles: (params: { project_id?: string; sample_id?: string; sample_gene_id?: string }) => {
     const qs = new URLSearchParams()
     if (params.project_id) qs.set('project_id', params.project_id)
     if (params.sample_id) qs.set('sample_id', params.sample_id)
+    if (params.sample_gene_id) qs.set('sample_gene_id', params.sample_gene_id)
     return apiV2<FileRef[]>(`/api/v2/files?${qs.toString()}`)
   },
 
@@ -459,18 +491,13 @@ export const apiV2Client = {
       body: { status },
     }),
 
-  /* reports */
-  createReport: (projectId: string, input: { title: string; code?: string }) =>
-    apiV2<Report>(`/api/v2/reports/projects/${projectId}/reports`, { method: 'POST', body: input }),
-  signReport: (reportId: string) =>
-    apiV2<Report>(`/api/v2/reports/reports/${reportId}/sign`, { method: 'POST', body: {} }),
-  getReport: (reportId: string) => apiV2<Report>(`/api/v2/reports/reports/${reportId}`),
-  listReports: (projectId: string) =>
-    apiV2<Report[]>(`/api/v2/reports/projects/${projectId}/reports`),
-  /** PÚBLICO — destino do QR Code impresso no PDF. Não envia auth. */
+  /* reports — o CRUD autenticado de laudo vive em lib/api.ts (getReports,
+     createReport, getReport), usado por /projects/[id]/reports e /reports. */
+  /** PÚBLICO — destino do QR Code impresso no PDF. Não envia auth.
+   *  O router de laudos monta em /api/v2 (sem sub-prefixo "reports/"). */
   verifyReport: (reportId: string, hash: string) =>
     apiV2<ReportVerification>(
-      `/api/v2/reports/reports/${reportId}/verify?hash=${encodeURIComponent(hash)}`,
+      `/api/v2/reports/${reportId}/verify?hash=${encodeURIComponent(hash)}`,
       { anonymous: true }
     ),
 }
@@ -480,6 +507,7 @@ export const apiV2Client = {
 export interface UploadOptions {
   project_id: string
   sample_id?: string
+  sample_gene_id?: string
   category: string
   /** 0–100 */
   onProgress?: (pct: number) => void
@@ -495,6 +523,7 @@ export async function uploadFile(file: File, opts: UploadOptions): Promise<FileR
   const presign = await apiV2Client.presignFile({
     project_id: opts.project_id,
     sample_id: opts.sample_id,
+    sample_gene_id: opts.sample_gene_id,
     category: opts.category,
     original_name: file.name,
     mime_type: file.type || 'application/octet-stream',

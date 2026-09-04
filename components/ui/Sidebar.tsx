@@ -22,18 +22,17 @@ const NAV_ITEMS = [
 // botão de escrita via can() — quem pode *ver* cada tela fica pra depois
 // (ver tech-debt/label-solicitacoes-corridas.md-like: decisão adiada de
 // propósito, não esquecida).
-// Itens da Fatia 1 (MVP LIMS, /api/v2) mesclados da feat/mvp-v2: Clientes,
-// Projetos v2 e Modo Campo — telas novas que só existem na v2.
+// Itens da Fatia 1 (MVP LIMS, /api/v2) mesclados da feat/mvp-v2: Clientes e
+// Modo Campo. "Projetos v2" foi unificado em /projects (a rota antiga
+// /projects-v2 só redireciona).
 const LIMS_NAV_ITEMS = [
-  { href: '/projects',              label: 'Projetos',      icon: '◫' },
+  { href: '/projects',               label: 'Projetos',      icon: '◫' },
   { href: '/samples',                label: 'Amostras',      icon: '▤' },
   { href: '/results',                label: 'Resultados',    icon: '≡' },
   { href: '/reports',                label: 'Laudos',        icon: '▦' },
   { href: '/inventory/reagentes',    label: 'Reagentes',     icon: '▢' },
   { href: '/inventory/equipamentos', label: 'Equipamentos',  icon: '⚙' },
   { href: '/interop',                label: 'Interop',       icon: '⇄' },
-  { href: '/customers',              label: 'Clientes',      icon: '◇' },
-  { href: '/projects-v2',            label: 'Projetos v2',   icon: '◆' },
   { href: '/field',                  label: 'Modo Campo',    icon: '⛰' },
 ]
 

@@ -63,7 +63,6 @@ export const qk = {
   identity: ['v2', 'identity'] as const,
   organizations: ['v2', 'organizations'] as const,
   members: ['v2', 'members'] as const,
-  customers: (orgId: string | null) => ['v2', 'customers', orgId] as const,
   projects: (orgId: string | null) => ['v2', 'projects', orgId] as const,
   project: (orgId: string | null, id: string) => ['v2', 'project', orgId, id] as const,
   samples: (orgId: string | null, projectId: string) =>

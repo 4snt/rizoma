@@ -1,12 +1,22 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiV2Client, SAMPLE_MATRICES, type ProjectV2, type SampleMatrix } from '@/lib/api-v2'
+import {
+  apiV2Client,
+  ORGANISM_TYPES,
+  SAMPLE_MATRICES,
+  type OrganismType,
+  type ProjectV2,
+  type SampleMatrix,
+} from '@/lib/api-v2'
+import { ISOLATION_SOURCE_SUGGESTIONS } from '@/lib/api'
 import { enqueueAndFlush, uuidv7, type OutboxOperation } from '@/lib/offline-outbox'
 import { qk } from '@/lib/query-client'
 import { useOrg } from '@/components/providers/OrgProvider'
 import { useOutbox } from '@/components/mvp/OutboxBadge'
+import { BarcodeScanner } from '@/components/ui/BarcodeScanner'
+import { GpsField, type GpsValue } from '@/components/ui/GpsField'
 import {
   Button,
   Card,
@@ -21,11 +31,7 @@ import {
   Th,
 } from '@/components/mvp/Primitives'
 
-interface Coords {
-  lat: number
-  lon: number
-  accuracy?: number
-}
+const NO_GPS: GpsValue = { lat: null, lon: null }
 
 export default function FieldPage() {
   const { organizationId } = useOrg()
@@ -35,10 +41,14 @@ export default function FieldPage() {
   const [projectId, setProjectId] = useState('')
   const [code, setCode] = useState('')
   const [matrix, setMatrix] = useState<SampleMatrix>('solo')
+  const [organismType, setOrganismType] = useState<OrganismType | ''>('')
   const [notes, setNotes] = useState('')
-  const [coords, setCoords] = useState<Coords | null>(null)
-  const [gpsError, setGpsError] = useState<string | null>(null)
-  const [gpsBusy, setGpsBusy] = useState(false)
+  const [strainName, setStrainName] = useState('')
+  const [isolationSource, setIsolationSource] = useState('')
+  const [hostSpecies, setHostSpecies] = useState('')
+  const [collectionSite, setCollectionSite] = useState('')
+  const [scanning, setScanning] = useState(false)
+  const [coords, setCoords] = useState<GpsValue>(NO_GPS)
   const [saved, setSaved] = useState(0)
 
   // Vem do cache persistido em IndexedDB quando não há rede (networkMode: offlineFirst).
@@ -48,37 +58,18 @@ export default function FieldPage() {
     enabled: Boolean(organizationId),
   })
 
-  const readGps = useCallback(() => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      setGpsError('Este dispositivo não expõe geolocalização.')
-      return
-    }
-    setGpsBusy(true)
-    setGpsError(null)
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setCoords({
-          lat: pos.coords.latitude,
-          lon: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-        })
-        setGpsBusy(false)
-      },
-      (err) => {
-        setGpsError(err.message)
-        setGpsBusy(false)
-      },
-      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 0 }
-    )
-  }, [])
-
   // A coleta NUNCA falha por falta de rede: vai para a outbox e sai de lá quando houver sinal.
   const collect = useMutation({
     mutationFn: (op: OutboxOperation) => enqueueAndFlush(op, organizationId),
     onSuccess: () => {
       setCode('')
       setNotes('')
-      setCoords(null)
+      setOrganismType('')
+      setStrainName('')
+      setIsolationSource('')
+      setHostSpecies('')
+      setCollectionSite('')
+      setCoords(NO_GPS)
       setSaved((n) => n + 1)
       void queryClient.invalidateQueries({ queryKey: qk.samples(organizationId, projectId) })
     },
@@ -86,6 +77,15 @@ export default function FieldPage() {
 
   return (
     <div className="fade-in">
+      {scanning && (
+        <BarcodeScanner
+          onScan={(value) => {
+            setCode(value)
+            setScanning(false)
+          }}
+          onClose={() => setScanning(false)}
+        />
+      )}
       <PageHeader
         title="Modo Campo"
         subtitle="Funciona sem sinal. A coleta é gravada no dispositivo e sincroniza ao voltar a rede."
@@ -114,6 +114,8 @@ export default function FieldPage() {
           onSubmit={(e) => {
             e.preventDefault()
             if (!projectId || !code.trim()) return
+            // lat/lon só vão juntos — a API rejeita um sem o outro.
+            const hasGps = coords.lat != null && coords.lon != null
             collect.mutate({
               type: 'sample.create',
               projectId,
@@ -122,11 +124,16 @@ export default function FieldPage() {
                 id: uuidv7(),
                 code: code.trim(),
                 matrix,
-                lat: coords?.lat,
-                lon: coords?.lon,
+                lat: hasGps ? coords.lat ?? undefined : undefined,
+                lon: hasGps ? coords.lon ?? undefined : undefined,
                 occurred_at: new Date().toISOString(),
+                notes: notes.trim() || undefined,
+                organism_type: organismType || undefined,
+                strain_name: strainName.trim() || undefined,
+                isolation_source: isolationSource.trim() || undefined,
+                host_species: hostSpecies.trim() || undefined,
+                collection_site: collectionSite.trim() || undefined,
               },
-              notes: notes.trim() || undefined,
             })
           }}
         >
@@ -144,12 +151,24 @@ export default function FieldPage() {
               </Select>
             </Field>
             <Field label="Código da amostra">
-              <Input
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="INO-S07"
-                required
-              />
+              <div style={{ display: 'flex', gap: 6 }}>
+                <Input
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder="NEBIM0001"
+                  required
+                  style={{ flex: 1, minWidth: 0 }}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setScanning(true)}
+                  title="Ler etiqueta com a câmera"
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  📷 Escanear
+                </Button>
+              </div>
             </Field>
             <Field label="Matriz">
               <Select value={matrix} onChange={(e) => setMatrix(e.target.value as SampleMatrix)}>
@@ -160,25 +179,63 @@ export default function FieldPage() {
                 ))}
               </Select>
             </Field>
+            <Field label="Tipo de organismo" hint="Opcional">
+              <Select
+                value={organismType}
+                onChange={(e) => setOrganismType(e.target.value as OrganismType | '')}
+              >
+                <option value="">—</option>
+                {ORGANISM_TYPES.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </Select>
+            </Field>
           </div>
 
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
-            <Button type="button" variant="ghost" onClick={readGps} disabled={gpsBusy}>
-              {gpsBusy ? 'Lendo GPS…' : '⌖ Capturar GPS'}
-            </Button>
-            {coords && (
-              <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-2)' }}>
-                {coords.lat.toFixed(6)}, {coords.lon.toFixed(6)}
-                {coords.accuracy != null && ` (±${Math.round(coords.accuracy)} m)`}
-              </span>
-            )}
-            {gpsError && <span style={{ color: 'var(--red)', fontSize: 12 }}>{gpsError}</span>}
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+            <Field label="Nome da linhagem" hint="Opcional">
+              <Input
+                value={strainName}
+                onChange={(e) => setStrainName(e.target.value)}
+                placeholder="ex.: NEBIM-Bs01"
+              />
+            </Field>
+            <Field label="Fonte de isolamento" hint="Opcional">
+              <Input
+                list="field-isolation-sources"
+                value={isolationSource}
+                onChange={(e) => setIsolationSource(e.target.value)}
+                placeholder="rizosfera, nódulo radicular…"
+              />
+              <datalist id="field-isolation-sources">
+                {ISOLATION_SOURCE_SUGGESTIONS.map((s) => (
+                  <option key={s} value={s} />
+                ))}
+              </datalist>
+            </Field>
+            <Field label="Hospedeiro (espécie)" hint="Opcional">
+              <Input
+                value={hostSpecies}
+                onChange={(e) => setHostSpecies(e.target.value)}
+                placeholder="ex.: Glycine max"
+              />
+            </Field>
+            <Field label="Local" hint="Opcional">
+              <Input
+                value={collectionSite}
+                onChange={(e) => setCollectionSite(e.target.value)}
+                placeholder="fazenda, talhão, município"
+              />
+            </Field>
           </div>
 
-          <Field
-            label="Observações"
-            hint="Registradas apenas no dispositivo — o contrato da API v2 ainda não tem campo para observações."
-          >
+          <div style={{ marginBottom: 12 }}>
+            <GpsField value={coords} onChange={setCoords} disabled={collect.isPending} />
+          </div>
+
+          <Field label="Observações" hint="Opcional">
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
           </Field>
 

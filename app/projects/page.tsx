@@ -105,7 +105,7 @@ export default function ProjectsPage() {
         </div>
         {isAdmin && (
           <Link
-            href="/admin/projects/new"
+            href="/projects/new"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
