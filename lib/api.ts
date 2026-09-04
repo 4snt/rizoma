@@ -31,9 +31,9 @@ export async function apiFetchWithToken<T>(
 }
 
 export const api = {
-  // v1/projects.py e v1/jobs.py nunca são montados pelo backend (404 real) —
-  // v2/lims e v2/jobs cobrem list/get/enqueue com contrato equivalente.
-  // Ver 4snt/rizoma-backend#9 (comment) pro mapeamento completo v1→v2.
+  // Só /api/v2 existe no backend (v1 e o módulo jobs foram removidos). O
+  // contrato de projeto é POST/GET /lims/projects, GET /lims/projects/{id} e
+  // PATCH /lims/projects/{id}/status — não há PUT/DELETE de projeto.
   getProjects:       (token: string) => apiFetchWithToken<Project[]>('/api/v2/lims/projects', token),
   getProject:        (token: string, id: string) => apiFetchWithToken<Project>(`/api/v2/lims/projects/${id}`, token),
 

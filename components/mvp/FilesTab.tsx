@@ -18,7 +18,11 @@ import {
   Th,
 } from '@/components/mvp/Primitives'
 
-const CATEGORIES = ['fastq', 'document', 'photo', 'other'] as const
+// Espelha `FileCategory` do backend (modules/files/schemas.py) — qualquer
+// valor fora disso é 422 no presign.
+const CATEGORIES = [
+  'fastq_r1', 'fastq_r2', 'phyloseq', 'result', 'report', 'field_photo', 'document', 'other',
+] as const
 
 function humanSize(bytes?: number | null): string {
   if (bytes == null) return '—'
@@ -152,7 +156,7 @@ export function FilesTab({ projectId }: { projectId: string }) {
                   <Td style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-3)' }}>
                     {f.sha256 ? `${f.sha256.slice(0, 12)}…` : '—'}
                   </Td>
-                  <Td>{f.status ? <StatusBadge status={f.status} /> : '—'}</Td>
+                  <Td>{f.upload_status ? <StatusBadge status={f.upload_status} /> : '—'}</Td>
                   <Td>
                     <Button
                       variant="ghost"

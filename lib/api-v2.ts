@@ -193,9 +193,16 @@ export const ORG_ROLES = [
 ] as const
 export type OrgRole = (typeof ORG_ROLES)[number]
 
-export type MarkerType = '16S' | 'ITS' | 'RNA'
-
-export type FileCategory = 'fastq' | 'photo' | 'document' | 'report' | 'other'
+/** Espelha modules/files/schemas.py::FileCategory. */
+export type FileCategory =
+  | 'fastq_r1'
+  | 'fastq_r2'
+  | 'phyloseq'
+  | 'result'
+  | 'report'
+  | 'field_photo'
+  | 'document'
+  | 'other'
 
 
 /* ── Entidades ──────────────────────────────────────────────────────── */
@@ -243,21 +250,16 @@ export interface AuthResponse {
   organizations: Organization[]
 }
 
-export interface Customer {
-  id: string
-  name: string
-  document?: string | null
-  contact_email?: string | null
-  created_at?: string
-}
-
+/** Espelha modules/lims/schemas.py::ProjectOut. */
 export interface ProjectV2 {
   id: string
-  customer_id?: string | null
+  organization_id?: string
+  customer_user_id?: string | null
   code: string
   name: string
   description?: string | null
-  marker_type?: MarkerType | null
+  status?: string
+  created_by?: string | null
   created_at?: string
 }
 
@@ -311,7 +313,7 @@ export interface FileRef {
   storage_key?: string | null
   size_bytes?: number | null
   sha256?: string | null
-  status?: string | null
+  upload_status?: string | null
   created_at?: string
 }
 
@@ -349,19 +351,6 @@ export interface ResultWithHistory {
   history: ResultVersion[]
 }
 
-export interface Report {
-  id: string
-  project_id: string
-  title: string
-  code?: string | null
-  status?: 'draft' | 'signed' | string
-  hash?: string | null
-  signed_at?: string | null
-  signed_by?: string | null
-  download_url?: string | null
-  created_at?: string
-}
-
 export interface ReportVerification {
   valid: boolean
   report_id?: string
@@ -376,20 +365,6 @@ export interface ReportVerification {
 }
 
 /* ── Payloads ───────────────────────────────────────────────────────── */
-
-export interface CreateCustomerInput {
-  name: string
-  document?: string
-  contact_email?: string
-}
-
-export interface CreateProjectInput {
-  customer_id?: string
-  code: string
-  name: string
-  description?: string
-  marker_type?: MarkerType
-}
 
 export interface CreateSampleInput {
   /** UUIDv7 gerado no cliente (necessário para o modo offline). */
@@ -439,16 +414,9 @@ export const apiV2Client = {
   createInvitation: (input: { email: string; role: OrgRole }) =>
     apiV2<Invitation>('/api/v2/identity/invitations', { method: 'POST', body: input }),
 
-  /* lims — customers */
-  listCustomers: () => apiV2<Customer[]>('/api/v2/lims/customers'),
-  createCustomer: (input: CreateCustomerInput, idempotencyKey?: string) =>
-    apiV2<Customer>('/api/v2/lims/customers', { method: 'POST', body: input, idempotencyKey }),
-
-  /* lims — projects */
+  /* lims — projects (criação vive em lib/api.ts::createProject, usada por /projects/new) */
   listProjects: () => apiV2<ProjectV2[]>('/api/v2/lims/projects'),
   getProject: (id: string) => apiV2<ProjectV2>(`/api/v2/lims/projects/${id}`),
-  createProject: (input: CreateProjectInput, idempotencyKey?: string) =>
-    apiV2<ProjectV2>('/api/v2/lims/projects', { method: 'POST', body: input, idempotencyKey }),
 
   /* lims — samples */
   listSamples: (projectId: string) =>
@@ -506,18 +474,13 @@ export const apiV2Client = {
       body: { status },
     }),
 
-  /* reports */
-  createReport: (projectId: string, input: { title: string; code?: string }) =>
-    apiV2<Report>(`/api/v2/reports/projects/${projectId}/reports`, { method: 'POST', body: input }),
-  signReport: (reportId: string) =>
-    apiV2<Report>(`/api/v2/reports/reports/${reportId}/sign`, { method: 'POST', body: {} }),
-  getReport: (reportId: string) => apiV2<Report>(`/api/v2/reports/reports/${reportId}`),
-  listReports: (projectId: string) =>
-    apiV2<Report[]>(`/api/v2/reports/projects/${projectId}/reports`),
-  /** PÚBLICO — destino do QR Code impresso no PDF. Não envia auth. */
+  /* reports — o CRUD autenticado de laudo vive em lib/api.ts (getReports,
+     createReport, getReport), usado por /projects/[id]/reports e /reports. */
+  /** PÚBLICO — destino do QR Code impresso no PDF. Não envia auth.
+   *  O router de laudos monta em /api/v2 (sem sub-prefixo "reports/"). */
   verifyReport: (reportId: string, hash: string) =>
     apiV2<ReportVerification>(
-      `/api/v2/reports/reports/${reportId}/verify?hash=${encodeURIComponent(hash)}`,
+      `/api/v2/reports/${reportId}/verify?hash=${encodeURIComponent(hash)}`,
       { anonymous: true }
     ),
 }
