@@ -505,11 +505,16 @@ export type UpdateSampleAliquotBody = Partial<CreateSampleAliquotBody>
 
 
 // Testes bioquímicos/enzimáticos — catálogo aberto (test_name é texto livre).
+export type SampleTestResultType = 'qualitativo' | 'quantitativo'
+
 export interface SampleTest {
   id: string
   sample_id: string
   test_name: string
   result: string | null
+  result_type: SampleTestResultType | null
+  result_value: number | null
+  result_unit: string | null
   method: string | null
   tested_at: string | null
   notes: string | null
@@ -520,6 +525,9 @@ export interface SampleTest {
 export interface CreateSampleTestBody {
   test_name: string
   result?: string | null
+  result_type?: SampleTestResultType | null
+  result_value?: number | null
+  result_unit?: string | null
   method?: string | null
   tested_at?: string | null
   notes?: string | null

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import useSWR from 'swr'
-import { api } from '@/lib/api'
+import { api, type SampleTestResultType } from '@/lib/api'
 import { can } from '@/lib/permissions'
 import { fmtDate, inputStyle, primaryButtonStyle, tdStyle, thStyle } from './styles'
 import { InlineDeleteButton, SectionHeader, ToggleButton } from './ui'
@@ -12,9 +12,15 @@ const COMMON_TESTS = [
   'Catalase', 'Esterase', 'Urease', 'Hipersensibilidade', 'Fosfatase Ácida',
   'Fosfatase Alcalina', 'Oxidase', 'Sideróforos', 'Produção AIA', 'Desoxigenase', 'Desalogenase',
 ]
+// Qualitativo: enzimático padrão, dá positivo/negativo (+/-/++/-+/N).
+// Quantitativo: quando dá pra medir de verdade (valor numérico + unidade).
 const COMMON_RESULTS = ['+', '-', '++', '-+', 'N']
+const COMMON_UNITS = ['mm', 'cm', 'UI/mL', 'mg/mL', 'µg/mL', '%', 'UFC/mL']
 
-const EMPTY_FORM = { test_name: '', result: '', method: '', tested_at: '', notes: '' }
+const EMPTY_FORM = {
+  test_name: '', result_type: 'qualitativo' as SampleTestResultType,
+  result: '', result_value: '', result_unit: '', method: '', tested_at: '', notes: '',
+}
 
 export function TestsPanel({ token, role, sampleId, embedded }: {
   token: string
@@ -33,9 +39,13 @@ export function TestsPanel({ token, role, sampleId, embedded }: {
     if (!form.test_name.trim()) { setErr('Nome do teste é obrigatório.'); return }
     setSaving(true); setErr('')
     try {
+      const quantitativo = form.result_type === 'quantitativo'
       await api.createSampleTest(token, sampleId, {
         test_name: form.test_name.trim(),
-        result: form.result.trim() || null,
+        result_type: form.result_type,
+        result: quantitativo ? null : (form.result.trim() || null),
+        result_value: quantitativo && form.result_value ? Number(form.result_value) : null,
+        result_unit: quantitativo ? (form.result_unit.trim() || null) : null,
         method: form.method.trim() || null,
         tested_at: form.tested_at || null,
         notes: form.notes.trim() || null,
@@ -68,13 +78,33 @@ export function TestsPanel({ token, role, sampleId, embedded }: {
       <datalist id="sample-test-results">
         {COMMON_RESULTS.map(r => <option key={r} value={r} />)}
       </datalist>
+      <datalist id="sample-test-units">
+        {COMMON_UNITS.map(u => <option key={u} value={u} />)}
+      </datalist>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
         <input list="sample-test-names" placeholder="Teste *" value={form.test_name}
           onChange={e => setForm(f => ({ ...f, test_name: e.target.value }))}
           style={{ ...inputStyle, width: undefined, flex: '1 1 180px' }} />
-        <input list="sample-test-results" placeholder="Resultado (+, -, ++…)" value={form.result}
-          onChange={e => setForm(f => ({ ...f, result: e.target.value }))}
-          style={{ ...inputStyle, width: undefined, flex: '0 1 150px', fontFamily: 'var(--mono)' }} />
+        <select value={form.result_type}
+          onChange={e => setForm(f => ({ ...f, result_type: e.target.value as SampleTestResultType }))}
+          style={{ ...inputStyle, width: undefined, flex: '0 1 150px' }}>
+          <option value="qualitativo">Qualitativo (+/-)</option>
+          <option value="quantitativo">Quantitativo</option>
+        </select>
+        {form.result_type === 'qualitativo' ? (
+          <input list="sample-test-results" placeholder="Resultado (+, -, ++…)" value={form.result}
+            onChange={e => setForm(f => ({ ...f, result: e.target.value }))}
+            style={{ ...inputStyle, width: undefined, flex: '0 1 150px', fontFamily: 'var(--mono)' }} />
+        ) : (
+          <>
+            <input type="number" step="any" placeholder="Valor" value={form.result_value}
+              onChange={e => setForm(f => ({ ...f, result_value: e.target.value }))}
+              style={{ ...inputStyle, width: undefined, flex: '0 1 110px', fontFamily: 'var(--mono)' }} />
+            <input list="sample-test-units" placeholder="Unidade" value={form.result_unit}
+              onChange={e => setForm(f => ({ ...f, result_unit: e.target.value }))}
+              style={{ ...inputStyle, width: undefined, flex: '0 1 110px' }} />
+          </>
+        )}
         <input placeholder="Método" value={form.method}
           onChange={e => setForm(f => ({ ...f, method: e.target.value }))}
           style={{ ...inputStyle, width: undefined, flex: '1 1 140px' }} />
@@ -133,7 +163,13 @@ export function TestsPanel({ token, role, sampleId, embedded }: {
               {tests.map(t => (
                 <tr key={t.id} style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
                   <td style={{ ...tdStyle, color: 'var(--text)', fontWeight: 600 }}>{t.test_name}</td>
-                  <td style={tdStyle}><span className="mono" style={{ color: 'var(--cyan)' }}>{t.result ?? '—'}</span></td>
+                  <td style={tdStyle}>
+                    <span className="mono" style={{ color: 'var(--cyan)' }}>
+                      {t.result_type === 'quantitativo'
+                        ? (t.result_value != null ? `${t.result_value}${t.result_unit ? ' ' + t.result_unit : ''}` : '—')
+                        : (t.result ?? '—')}
+                    </span>
+                  </td>
                   <td style={tdStyle}>{t.method ?? '—'}</td>
                   <td style={{ ...tdStyle, color: 'var(--text-3)', fontSize: 12 }}>{fmtDate(t.tested_at)}</td>
                   <td style={{ ...tdStyle, color: 'var(--text-3)', fontSize: 12 }}>{t.notes ?? '—'}</td>
