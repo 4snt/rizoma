@@ -131,14 +131,13 @@ export function SampleWizard({ projectId, initialSampleId, initialStep }: Sample
   const [morph, setMorph] = useState<MorphologyFormValue | null>(null)
   const [cultureDirty, setCultureDirty] = useState(false)
 
-  const sampleKey = sample ? `${sample.id}:${sample.created_at}` : null
   useEffect(() => {
     if (!sample) return
     if (!identDirty) setIdent(identToForm(sample))
     if (!originDirty) setOrigin(originToForm(sample))
     if (!cultureDirty) { setCulture(cultureToForm(sample)); setMorph(morphologyToForm(sample)) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sampleKey])
+  }, [sample])
 
   function updateIdent(patch: Partial<IdentForm>) {
     setIdentDirty(true)
