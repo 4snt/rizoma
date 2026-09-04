@@ -469,7 +469,11 @@ export const apiV2Client = {
     if (params.project_id) qs.set('project_id', params.project_id)
     if (params.sample_id) qs.set('sample_id', params.sample_id)
     if (params.sample_gene_id) qs.set('sample_gene_id', params.sample_gene_id)
-    return apiV2<FileRef[]>(`/api/v2/files?${qs.toString()}`)
+    // Rota do backend é GET /api/v2/files/ (barra no fim) — sem ela o FastAPI
+    // redireciona (307) pra adicionar a barra, e como a API roda atrás de
+    // proxy sem X-Forwarded-Proto confiável, o redirect sai como http:// e o
+    // navegador bloqueia por mixed content numa página https.
+    return apiV2<FileRef[]>(`/api/v2/files/?${qs.toString()}`)
   },
 
   /* lab */
