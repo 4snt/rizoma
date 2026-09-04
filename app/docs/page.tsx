@@ -16,7 +16,7 @@ export default function DocsPage() {
         <p className="page-subtitle">
           Documentação interativa — Rizoma API{' '}
           <a
-            href={`${API_URL}/docs`}
+            href={`${API_URL}/api/docs`}
             target="_blank"
             rel="noreferrer"
             style={{ color: 'var(--cyan)', fontSize: 12 }}
@@ -28,7 +28,7 @@ export default function DocsPage() {
 
       <div style={{ background: '#fff', borderRadius: 10, overflow: 'hidden' }}>
         <SwaggerUI
-          url={`${API_URL}/openapi.json`}
+          url={`${API_URL}/api/openapi.json`}
           docExpansion="list"
           defaultModelsExpandDepth={-1}
           tryItOutEnabled={false}
