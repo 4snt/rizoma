@@ -10,8 +10,11 @@ import { can } from '@/lib/permissions'
 import { MorphologyPanel } from '@/components/samples/MorphologyPanel'
 import { TestsPanel } from '@/components/samples/TestsPanel'
 import { GenesPanel } from '@/components/samples/GenesPanel'
+import { SampleSheetPanel } from '@/components/samples/SampleSheetPanel'
+import { AliquotsPanel } from '@/components/samples/AliquotsPanel'
+import { SampleFilesPanel } from '@/components/samples/SampleFilesPanel'
 
-type Tab = 'custody' | 'results' | 'morphology' | 'tests' | 'genes'
+type Tab = 'sheet' | 'custody' | 'morphology' | 'tests' | 'genes' | 'aliquots' | 'files' | 'results'
 
 const STATUS_OPTIONS: LimsSampleStatus[] = [
   'planned', 'collected', 'in_transit', 'received', 'accepted',
@@ -275,7 +278,7 @@ export default function SampleDetailPage() {
     () => api.getCustodyChain(token!, id),
   )
 
-  const [tab, setTab] = useState<Tab>('custody')
+  const [tab, setTab] = useState<Tab>('sheet')
   const [showTransition, setShowTransition] = useState(false)
   const [toStatus, setToStatus] = useState<LimsSampleStatus>('collected')
   const [notes, setNotes] = useState('')
@@ -319,8 +322,11 @@ export default function SampleDetailPage() {
       <div className="page-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
           {sample ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <h1 className="page-title mono" style={{ color: 'var(--cyan)' }}>{sample.code}</h1>
+              {sample.strain_name && (
+                <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>{sample.strain_name}</span>
+              )}
               <span className="badge badge-blue">{sample.matrix}</span>
               <span className="badge badge-cyan">{sample.status}</span>
               {sample.organism_type && (
@@ -338,16 +344,30 @@ export default function SampleDetailPage() {
           )}
         </div>
         {can(role, 'sample:write') && (
-          <button
-            onClick={() => setShowTransition(v => !v)}
-            style={{
-              background: 'rgba(16,212,138,0.1)', border: '1px solid rgba(16,212,138,0.25)',
-              borderRadius: 'var(--shape-full)', color: 'var(--green)', fontSize: 13, fontWeight: 600,
-              padding: '8px 16px', cursor: 'pointer',
-            }}
-          >
-            {showTransition ? '✕ Fechar' : '▶ Transicionar Status'}
-          </button>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            {sample && (
+              <Link
+                href={`/projects/${sample.project_id}/samples/new?sample=${sample.id}`}
+                style={{
+                  background: 'var(--cyan-dim)', border: '1px solid rgba(0,212,255,0.25)',
+                  borderRadius: 'var(--shape-full)', color: 'var(--cyan)', fontSize: 13, fontWeight: 600,
+                  padding: '8px 16px', textDecoration: 'none', whiteSpace: 'nowrap',
+                }}
+              >
+                Continuar cadastro →
+              </Link>
+            )}
+            <button
+              onClick={() => setShowTransition(v => !v)}
+              style={{
+                background: 'rgba(16,212,138,0.1)', border: '1px solid rgba(16,212,138,0.25)',
+                borderRadius: 'var(--shape-full)', color: 'var(--green)', fontSize: 13, fontWeight: 600,
+                padding: '8px 16px', cursor: 'pointer',
+              }}
+            >
+              {showTransition ? '✕ Fechar' : '▶ Transicionar Status'}
+            </button>
+          </div>
         )}
       </div>
 
@@ -398,7 +418,7 @@ export default function SampleDetailPage() {
         </div>
       )}
 
-      {/* Abas: custódia / resultados / morfologia / testes / genes */}
+      {/* Abas: ficha / custódia / morfologia / testes / genes / armazenamento / anexos / resultados */}
       <div role="tablist" style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 20, overflowX: 'auto' }}>
         {TABS.filter(t => t.id !== 'results' || can(role, 'result:read')).map(t => {
           const active = tab === t.id
@@ -419,6 +439,12 @@ export default function SampleDetailPage() {
         })}
       </div>
 
+      {tab === 'sheet' && token && (
+        sample
+          ? <SampleSheetPanel token={token} role={role} sample={sample} onChanged={() => mutateSample()} />
+          : <div className="skeleton" style={{ height: 160, borderRadius: 8 }} />
+      )}
+
       {tab === 'results' && token && can(role, 'result:read') && (
         <ResultsPanel token={token} role={role} sampleId={id} />
       )}
@@ -432,7 +458,17 @@ export default function SampleDetailPage() {
       {tab === 'tests' && token && <TestsPanel token={token} role={role} sampleId={id} />}
 
       {tab === 'genes' && token && (
-        <GenesPanel token={token} role={role} sampleId={id} organismType={sample?.organism_type} />
+        sample
+          ? <GenesPanel token={token} role={role} sampleId={id} organismType={sample.organism_type} projectId={sample.project_id} />
+          : <div className="skeleton" style={{ height: 120, borderRadius: 8 }} />
+      )}
+
+      {tab === 'aliquots' && token && <AliquotsPanel token={token} role={role} sampleId={id} />}
+
+      {tab === 'files' && (
+        sample
+          ? <SampleFilesPanel projectId={sample.project_id} sampleId={sample.id} />
+          : <div className="skeleton" style={{ height: 120, borderRadius: 8 }} />
       )}
 
       {tab === 'custody' && (
@@ -471,9 +507,12 @@ export default function SampleDetailPage() {
 }
 
 const TABS: { id: Tab; label: string }[] = [
+  { id: 'sheet', label: 'Ficha' },
   { id: 'custody', label: 'Custódia' },
-  { id: 'results', label: 'Resultados' },
   { id: 'morphology', label: 'Morfologia' },
   { id: 'tests', label: 'Testes' },
   { id: 'genes', label: 'Genes' },
+  { id: 'aliquots', label: 'Armazenamento' },
+  { id: 'files', label: 'Anexos' },
+  { id: 'results', label: 'Resultados' },
 ]

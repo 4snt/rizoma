@@ -1,28 +1,18 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import useSWR from 'swr'
 import { useSession } from 'next-auth/react'
 import {
   api,
   type LimsSample,
-  type LimsSampleMatrix,
   type LimsSampleStatus,
   type SampleImportResult,
-  type OrganismType,
-  ORGANISM_TYPES,
   ORGANISM_TYPE_LABELS,
 } from '@/lib/api'
 import { can } from '@/lib/permissions'
-import { BarcodeScanner } from '@/components/ui/BarcodeScanner'
-
-const MATRIX_OPTIONS: LimsSampleMatrix[] = [
-  'solo', 'sedimento', 'agua', 'tecido_vegetal', 'raiz', 'folha',
-  'biomassa', 'cultura_microbiana', 'dna', 'rna', 'extrato',
-  'biochar', 'formulado', 'substrato',
-]
 
 function statusBadge(status: LimsSampleStatus) {
   const map: Record<LimsSampleStatus, string> = {
@@ -50,39 +40,7 @@ export default function ProjectSamplesPage() {
     () => api.getLimsSamples(token!, projectId),
   )
 
-  const [showCreate, setShowCreate] = useState(false)
-  const [form, setForm] = useState({
-    code: '', matrix: 'solo' as LimsSampleMatrix,
-    treatment_group: '', replicate: '', notes: '',
-    organism_type: '' as OrganismType | '',
-  })
-  const [scanning, setScanning] = useState(false)
-  const [creating, setCreating] = useState(false)
-  const [createError, setCreateError] = useState('')
-
-  async function handleCreate() {
-    if (!token || !projectId) return
-    if (!form.code.trim()) { setCreateError('Código é obrigatório.'); return }
-    setCreating(true)
-    setCreateError('')
-    try {
-      await api.createLimsSample(token, projectId, {
-        code: form.code.trim(),
-        matrix: form.matrix,
-        treatment_group: form.treatment_group.trim() || null,
-        replicate: form.replicate ? Number(form.replicate) : null,
-        notes: form.notes.trim() || null,
-        organism_type: form.organism_type || null,
-      })
-      await mutate()
-      setForm({ code: '', matrix: 'solo', treatment_group: '', replicate: '', notes: '', organism_type: '' })
-      setShowCreate(false)
-    } catch (e) {
-      setCreateError(e instanceof Error ? e.message : 'Erro ao registrar amostra.')
-    } finally {
-      setCreating(false)
-    }
-  }
+  const router = useRouter()
 
   // Import/export CSV (4snt/rizoma#10 — v2/interop)
   const importRef = useRef<HTMLInputElement>(null)
@@ -170,16 +128,16 @@ export default function ProjectSamplesPage() {
               >
                 {importing ? 'Importando...' : '↑ Importar CSV'}
               </button>
-              <button
-                onClick={() => setShowCreate(v => !v)}
+              <Link
+                href={`/projects/${projectId}/samples/new`}
                 style={{
                   background: 'var(--cyan)', color: '#050d1a', border: 'none',
                   borderRadius: 'var(--shape-full)', fontWeight: 700, fontSize: 13,
-                  padding: '8px 16px', cursor: 'pointer',
+                  padding: '8px 16px', cursor: 'pointer', textDecoration: 'none', whiteSpace: 'nowrap',
                 }}
               >
-                {showCreate ? '✕ Fechar' : '+ Registrar Amostra'}
-              </button>
+                + Nova amostra
+              </Link>
             </>
           )}
         </div>
@@ -205,123 +163,6 @@ export default function ProjectSamplesPage() {
         </div>
       )}
 
-      {showCreate && can(session?.role, 'sample:write') && (
-        <div className="card" style={{ padding: 20, marginBottom: 20 }}>
-          <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 14, fontSize: 14 }}>Nova Amostra</div>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
-            <div style={{ flex: '1 1 160px' }}>
-              <label style={{ display: 'block', fontSize: 12, color: 'var(--text-2)', marginBottom: 6 }}>Código *</label>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <input
-                  type="text" value={form.code}
-                  onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
-                  style={{
-                    flex: 1, minWidth: 0, background: 'var(--bg)', border: '1px solid var(--border)',
-                    borderRadius: 'var(--shape-sm)', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--mono)',
-                    padding: '7px 12px', outline: 'none', boxSizing: 'border-box',
-                  }}
-                />
-                <button
-                  type="button" onClick={() => setScanning(true)} title="Escanear código de barras"
-                  style={{
-                    flexShrink: 0, padding: '7px 10px', background: 'var(--surface-2)', border: '1px solid var(--border)',
-                    borderRadius: 'var(--shape-sm)', color: 'var(--text-2)', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap',
-                  }}
-                >
-                  📷 Escanear
-                </button>
-              </div>
-            </div>
-            <div style={{ flex: '1 1 150px' }}>
-              <label style={{ display: 'block', fontSize: 12, color: 'var(--text-2)', marginBottom: 6 }}>Tipo de organismo</label>
-              <select
-                value={form.organism_type}
-                onChange={e => setForm(f => ({ ...f, organism_type: e.target.value as OrganismType | '' }))}
-                style={{
-                  width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)',
-                  borderRadius: 'var(--shape-sm)', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--mono)',
-                  padding: '7px 10px',
-                }}
-              >
-                <option value="">—</option>
-                {ORGANISM_TYPES.map(o => <option key={o} value={o}>{ORGANISM_TYPE_LABELS[o]}</option>)}
-              </select>
-            </div>
-            <div style={{ flex: '1 1 160px' }}>
-              <label style={{ display: 'block', fontSize: 12, color: 'var(--text-2)', marginBottom: 6 }}>Matriz</label>
-              <select
-                value={form.matrix}
-                onChange={e => setForm(f => ({ ...f, matrix: e.target.value as LimsSampleMatrix }))}
-                style={{
-                  width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)',
-                  borderRadius: 'var(--shape-sm)', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--mono)',
-                  padding: '7px 10px',
-                }}
-              >
-                {MATRIX_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
-            <div style={{ flex: '1 1 140px' }}>
-              <label style={{ display: 'block', fontSize: 12, color: 'var(--text-2)', marginBottom: 6 }}>Grupo</label>
-              <input
-                type="text" value={form.treatment_group}
-                onChange={e => setForm(f => ({ ...f, treatment_group: e.target.value }))}
-                style={{
-                  width: '100%', background: 'var(--bg)', border: '1px solid var(--border)',
-                  borderRadius: 'var(--shape-sm)', color: 'var(--text)', fontSize: 13,
-                  padding: '7px 12px', outline: 'none', boxSizing: 'border-box',
-                }}
-              />
-            </div>
-            <div style={{ flex: '1 1 90px' }}>
-              <label style={{ display: 'block', fontSize: 12, color: 'var(--text-2)', marginBottom: 6 }}>Réplica</label>
-              <input
-                type="number" min={1} value={form.replicate}
-                onChange={e => setForm(f => ({ ...f, replicate: e.target.value }))}
-                style={{
-                  width: '100%', background: 'var(--bg)', border: '1px solid var(--border)',
-                  borderRadius: 'var(--shape-sm)', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--mono)',
-                  padding: '7px 12px', outline: 'none', boxSizing: 'border-box',
-                }}
-              />
-            </div>
-          </div>
-          <div style={{ marginBottom: 14 }}>
-            <label style={{ display: 'block', fontSize: 12, color: 'var(--text-2)', marginBottom: 6 }}>Notas</label>
-            <textarea
-              value={form.notes} rows={2}
-              onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-              style={{
-                width: '100%', background: 'var(--bg)', border: '1px solid var(--border)',
-                borderRadius: 'var(--shape-sm)', color: 'var(--text)', fontSize: 13,
-                padding: '7px 12px', outline: 'none', boxSizing: 'border-box', resize: 'vertical',
-              }}
-            />
-          </div>
-          {createError && <div style={{ fontSize: 12, color: 'var(--red)', marginBottom: 10 }}>{createError}</div>}
-          <button
-            onClick={handleCreate}
-            disabled={creating || !form.code.trim()}
-            style={{
-              padding: '8px 18px',
-              background: !creating && form.code.trim() ? 'var(--cyan)' : 'var(--surface-2)',
-              color: !creating && form.code.trim() ? '#050d1a' : 'var(--text-3)',
-              border: 'none', borderRadius: 'var(--shape-full)', fontSize: 13, fontWeight: 700,
-              cursor: !creating && form.code.trim() ? 'pointer' : 'not-allowed',
-            }}
-          >
-            {creating ? 'Registrando...' : 'Registrar'}
-          </button>
-        </div>
-      )}
-
-      {scanning && (
-        <BarcodeScanner
-          onScan={(code) => { setForm(f => ({ ...f, code })); setScanning(false) }}
-          onClose={() => setScanning(false)}
-        />
-      )}
-
       {isLoading && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {[1, 2, 3].map(i => <div key={i} className="skeleton" style={{ height: 44, borderRadius: 8 }} />)}
@@ -345,6 +186,7 @@ export default function ProjectSamplesPage() {
             <thead>
               <tr style={{ color: 'var(--text-3)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
                 <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>Código</th>
+                <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>Linhagem</th>
                 <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>Matriz</th>
                 <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>Organismo</th>
                 <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>Grupo</th>
@@ -355,8 +197,13 @@ export default function ProjectSamplesPage() {
             </thead>
             <tbody>
               {samples.map((s: LimsSample) => (
-                <tr key={s.id} style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+                <tr
+                  key={s.id}
+                  onClick={() => router.push(`/samples/${s.id}`)}
+                  style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+                >
                   <td style={{ padding: '10px 12px' }}><span className="mono">{s.code}</span></td>
+                  <td style={{ padding: '10px 12px', color: 'var(--text-2)' }}>{s.strain_name ?? '—'}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--text-2)' }}>{s.matrix}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--text-2)' }}>
                     {s.organism_type ? ORGANISM_TYPE_LABELS[s.organism_type] : '—'}
@@ -367,8 +214,12 @@ export default function ProjectSamplesPage() {
                     {new Date(s.recorded_at).toLocaleString('pt-BR')}
                   </td>
                   <td style={{ padding: '10px 12px' }}>
-                    <Link href={`/samples/${s.id}`} style={{ color: 'var(--cyan)', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
-                      Ver custódia →
+                    <Link
+                      href={`/samples/${s.id}`}
+                      onClick={e => e.stopPropagation()}
+                      style={{ color: 'var(--cyan)', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}
+                    >
+                      Abrir →
                     </Link>
                   </td>
                 </tr>

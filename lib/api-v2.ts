@@ -203,7 +203,10 @@ export type FileCategory =
   | 'field_photo'
   | 'document'
   | 'other'
-
+  | 'fasta'
+  | 'chromatogram'
+  | 'gel_image'
+  | 'colony_photo'
 
 /* ── Entidades ──────────────────────────────────────────────────────── */
 
@@ -285,6 +288,12 @@ export interface SampleV2 {
   colonia_textura?: ColoniaTextura | null
   colonia_tamanho_mm?: number | null
   colonia_opacidade?: ColoniaOpacidade | null
+  /* Identificação do isolado */
+  strain_name?: string | null
+  isolation_source?: string | null
+  host_species?: string | null
+  host_cultivar?: string | null
+  collection_site?: string | null
 }
 
 export interface CustodyEvent {
@@ -307,6 +316,7 @@ export interface FileRef {
   id: string
   project_id: string
   sample_id?: string | null
+  sample_gene_id?: string | null
   category: FileCategory | string
   original_name: string
   mime_type?: string | null
@@ -378,6 +388,11 @@ export interface CreateSampleInput {
   occurred_at?: string
   notes?: string
   organism_type?: OrganismType
+  strain_name?: string | null
+  isolation_source?: string | null
+  host_species?: string | null
+  host_cultivar?: string | null
+  collection_site?: string | null
 }
 
 export interface CreateResultInput {
@@ -440,6 +455,7 @@ export const apiV2Client = {
   presignFile: (input: {
     project_id: string
     sample_id?: string
+    sample_gene_id?: string
     category: string
     original_name: string
     mime_type?: string
@@ -450,10 +466,11 @@ export const apiV2Client = {
       body: sha256 ? { sha256 } : {},
     }),
   downloadFile: (fileId: string) => apiV2<{ url: string }>(`/api/v2/files/${fileId}/download`),
-  listFiles: (params: { project_id?: string; sample_id?: string }) => {
+  listFiles: (params: { project_id?: string; sample_id?: string; sample_gene_id?: string }) => {
     const qs = new URLSearchParams()
     if (params.project_id) qs.set('project_id', params.project_id)
     if (params.sample_id) qs.set('sample_id', params.sample_id)
+    if (params.sample_gene_id) qs.set('sample_gene_id', params.sample_gene_id)
     return apiV2<FileRef[]>(`/api/v2/files?${qs.toString()}`)
   },
 
@@ -490,6 +507,7 @@ export const apiV2Client = {
 export interface UploadOptions {
   project_id: string
   sample_id?: string
+  sample_gene_id?: string
   category: string
   /** 0–100 */
   onProgress?: (pct: number) => void
@@ -505,6 +523,7 @@ export async function uploadFile(file: File, opts: UploadOptions): Promise<FileR
   const presign = await apiV2Client.presignFile({
     project_id: opts.project_id,
     sample_id: opts.sample_id,
+    sample_gene_id: opts.sample_gene_id,
     category: opts.category,
     original_name: file.name,
     mime_type: file.type || 'application/octet-stream',

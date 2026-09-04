@@ -22,7 +22,14 @@ import {
 // valor fora disso é 422 no presign.
 const CATEGORIES = [
   'fastq_r1', 'fastq_r2', 'phyloseq', 'result', 'report', 'field_photo', 'document', 'other',
+  'fasta', 'chromatogram', 'gel_image', 'colony_photo',
 ] as const
+const CATEGORY_LABELS: Partial<Record<(typeof CATEGORIES)[number], string>> = {
+  fasta: 'FASTA',
+  chromatogram: 'Cromatograma (.ab1)',
+  gel_image: 'Imagem de gel',
+  colony_photo: 'Foto de colônia',
+}
 
 function humanSize(bytes?: number | null): string {
   if (bytes == null) return '—'
@@ -40,7 +47,7 @@ export function FilesTab({ projectId }: { projectId: string }) {
   const { organizationId } = useOrg()
   const queryClient = useQueryClient()
   const inputRef = useRef<HTMLInputElement>(null)
-  const [category, setCategory] = useState<string>('fastq')
+  const [category, setCategory] = useState<string>('other')
   const [sampleId, setSampleId] = useState<string>('')
   const [progress, setProgress] = useState<number | null>(null)
 
@@ -86,7 +93,7 @@ export function FilesTab({ projectId }: { projectId: string }) {
             <Select value={category} onChange={(e) => setCategory(e.target.value)}>
               {CATEGORIES.map((c) => (
                 <option key={c} value={c}>
-                  {c}
+                  {CATEGORY_LABELS[c] ?? c}
                 </option>
               ))}
             </Select>
