@@ -149,6 +149,16 @@ export const api = {
                        apiFetchWithToken<EquipmentCalibration>(`/api/v2/inventory/equipment/${equipmentId}/calibrations`, token, {
                          method: 'POST', body: JSON.stringify(body),
                        }),
+  getReservations:   (token: string, equipmentId: string) =>
+                       apiFetchWithToken<EquipmentReservation[]>(`/api/v2/inventory/equipment/${equipmentId}/reservations`, token),
+  createReservation: (token: string, equipmentId: string, body: CreateEquipmentReservationBody) =>
+                       apiFetchWithToken<EquipmentReservation>(`/api/v2/inventory/equipment/${equipmentId}/reservations`, token, {
+                         method: 'POST', body: JSON.stringify(body),
+                       }),
+  cancelReservation: (token: string, equipmentId: string, reservationId: string) =>
+                       apiFetchWithToken<EquipmentReservation>(`/api/v2/inventory/equipment/${equipmentId}/reservations/${reservationId}/cancel`, token, {
+                         method: 'POST',
+                       }),
   getInventoryAlerts: (token: string, withinDays = 30) =>
                        apiFetchWithToken<InventoryAlerts>(`/api/v2/inventory/alerts?within_days=${withinDays}`, token),
 
@@ -759,6 +769,28 @@ export interface CreateCalibrationBody {
   next_calibration_due: string
   certificate_number?: string | null
   performed_by?: string | null
+  notes?: string | null
+}
+
+export type ReservationStatus = 'confirmed' | 'cancelled'
+
+export interface EquipmentReservation {
+  id: string
+  organization_id: string
+  equipment_id: string
+  project_id: string | null
+  starts_at: string
+  ends_at: string
+  status: ReservationStatus
+  notes: string | null
+  reserved_by: string | null
+  created_at: string
+}
+
+export interface CreateEquipmentReservationBody {
+  starts_at: string
+  ends_at: string
+  project_id?: string | null
   notes?: string | null
 }
 

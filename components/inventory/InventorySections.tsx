@@ -10,7 +10,7 @@ import useSWR from 'swr'
 import {
   api,
   type Reagent, type ReagentLot,
-  type Equipment, type EquipmentStatus,
+  type Equipment, type EquipmentStatus, type EquipmentReservation,
 } from '@/lib/api'
 import { can } from '@/lib/permissions'
 
@@ -310,6 +310,102 @@ function CalibrationsPanel({ token, role, equipmentId }: { token: string; role: 
   )
 }
 
+function reservationErrorMessage(e: unknown, fallback: string): string {
+  if (!(e instanceof Error)) return fallback
+  if (e.message.includes('409')) return 'Equipamento já reservado nesse período.'
+  if (e.message.includes('404')) return 'Equipamento não encontrado.'
+  if (e.message.includes('400')) return 'Data/hora de término precisa ser depois do início.'
+  return e.message || fallback
+}
+
+function ReservationsPanel({ token, role, equipmentId }: { token: string; role: string | undefined; equipmentId: string }) {
+  const { data: reservations, mutate } = useSWR(['reservations', equipmentId, token], () => api.getReservations(token, equipmentId))
+  const [showAdd, setShowAdd] = useState(false)
+  const [form, setForm] = useState({ starts_at: '', ends_at: '', notes: '' })
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+
+  async function handleAdd() {
+    if (!form.starts_at || !form.ends_at) { setErr('Início e término são obrigatórios.'); return }
+    if (new Date(form.ends_at).getTime() <= new Date(form.starts_at).getTime()) {
+      setErr('O término precisa ser depois do início.')
+      return
+    }
+    setSaving(true); setErr('')
+    try {
+      await api.createReservation(token, equipmentId, {
+        starts_at: new Date(form.starts_at).toISOString(),
+        ends_at: new Date(form.ends_at).toISOString(),
+        notes: form.notes.trim() || null,
+      })
+      await mutate()
+      setForm({ starts_at: '', ends_at: '', notes: '' })
+      setShowAdd(false)
+    } catch (e) {
+      setErr(reservationErrorMessage(e, 'Erro ao criar reserva.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleCancel(reservation: EquipmentReservation) {
+    if (!confirm('Cancelar esta reserva?')) return
+    try {
+      await api.cancelReservation(token, equipmentId, reservation.id)
+      await mutate()
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Erro ao cancelar reserva.')
+    }
+  }
+
+  return (
+    <div style={{ padding: '10px 16px 16px', background: 'var(--bg)', borderTop: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <span style={{ fontSize: 12, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Reservas</span>
+        {can(role, 'equipment:write') && (
+          <button onClick={() => setShowAdd(v => !v)} style={pillBtn('rgba(0,212,255,0.08)', 'var(--cyan)')}>
+            {showAdd ? '✕' : '+ Reservar'}
+          </button>
+        )}
+      </div>
+
+      {showAdd && can(role, 'equipment:write') && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+          <input type="datetime-local" value={form.starts_at} onChange={e => setForm(f => ({ ...f, starts_at: e.target.value }))} style={{ ...inputStyle, flex: '1 1 180px' }} />
+          <input type="datetime-local" placeholder="Término" value={form.ends_at} onChange={e => setForm(f => ({ ...f, ends_at: e.target.value }))} style={{ ...inputStyle, flex: '1 1 180px' }} />
+          <input placeholder="Notas" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} style={{ ...inputStyle, flex: '1 1 140px' }} />
+          <button onClick={handleAdd} disabled={saving} style={pillBtn('var(--cyan)', '#050d1a')}>{saving ? '...' : 'Salvar'}</button>
+        </div>
+      )}
+      {err && <div style={{ fontSize: 12, color: 'var(--red)', marginBottom: 8 }}>{err}</div>}
+
+      {!reservations && <div style={{ fontSize: 12, color: 'var(--text-3)' }}>carregando...</div>}
+      {reservations && reservations.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-3)' }}>Nenhuma reserva registrada.</div>}
+      {reservations && reservations.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {reservations.map(r => {
+            const ended = new Date(r.ends_at).getTime() < Date.now()
+            const inactive = r.status === 'cancelled' || ended
+            return (
+              <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--shape-xs)', fontSize: 12, color: inactive ? 'var(--text-3)' : undefined }}>
+                <span style={{ color: inactive ? 'var(--text-3)' : 'var(--text-2)' }}>
+                  {new Date(r.starts_at).toLocaleString('pt-BR')} → {new Date(r.ends_at).toLocaleString('pt-BR')}
+                </span>
+                {r.notes && <span style={{ color: 'var(--text-3)', flex: 1 }}>{r.notes}</span>}
+                {r.status === 'cancelled' && <span className="badge badge-red">cancelada</span>}
+                {r.status === 'confirmed' && ended && <span className="badge badge-amber">encerrada</span>}
+                {r.status === 'confirmed' && !ended && can(role, 'equipment:write') && (
+                  <button onClick={() => handleCancel(r)} style={pillBtn('rgba(239,68,68,0.08)', 'var(--red)')}>Cancelar</button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function EquipmentSection({ token, role }: { token: string; role: string | undefined }) {
   const { data: equipment, mutate } = useSWR(['equipment', token], () => api.getEquipment(token))
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -410,7 +506,12 @@ export function EquipmentSection({ token, role }: { token: string; role: string 
                   {expanded === eq.id ? '▲' : '▼'}
                 </span>
               </div>
-              {expanded === eq.id && <CalibrationsPanel token={token} role={role} equipmentId={eq.id} />}
+              {expanded === eq.id && (
+                <>
+                  <CalibrationsPanel token={token} role={role} equipmentId={eq.id} />
+                  <ReservationsPanel token={token} role={role} equipmentId={eq.id} />
+                </>
+              )}
             </div>
           ))}
         </div>
