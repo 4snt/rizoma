@@ -334,7 +334,6 @@ export interface LimsSample {
   colonia_tamanho_mm: number | null
   colonia_opacidade: ColoniaOpacidade | null
   // Identificação do isolado (linhagem, origem, hospedeiro, local).
-  strain_name: string | null
   isolation_source: string | null
   host_species: string | null
   host_cultivar: string | null
@@ -443,7 +442,6 @@ export const ALIQUOT_STATUS_LABELS: Record<AliquotStatus, string> = {
 // `lat`/`lon` devem ir juntos (ou nenhum) — o backend rejeita só um dos dois.
 export interface SampleUpdate {
   // identificação do isolado
-  strain_name?: string | null
   isolation_source?: string | null
   host_species?: string | null
   host_cultivar?: string | null
@@ -601,7 +599,6 @@ export interface CreateLimsSampleBody {
   colonia_tamanho_mm?: number | null
   colonia_opacidade?: ColoniaOpacidade | null
   // Registro do isolado — o backend aceita tudo já no POST (SampleCreate).
-  strain_name?: string | null
   isolation_source?: string | null
   host_species?: string | null
   host_cultivar?: string | null

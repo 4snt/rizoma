@@ -324,9 +324,6 @@ export default function SampleDetailPage() {
           {sample ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <h1 className="page-title mono" style={{ color: 'var(--cyan)' }}>{sample.code}</h1>
-              {sample.strain_name && (
-                <span style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>{sample.strain_name}</span>
-              )}
               <span className="badge badge-blue">{sample.matrix}</span>
               <span className="badge badge-cyan">{sample.status}</span>
               {sample.organism_type && (

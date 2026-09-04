@@ -186,7 +186,6 @@ export default function ProjectSamplesPage() {
             <thead>
               <tr style={{ color: 'var(--text-3)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
                 <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>Código</th>
-                <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>Linhagem</th>
                 <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>Matriz</th>
                 <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>Organismo</th>
                 <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 600 }}>Grupo</th>
@@ -203,7 +202,6 @@ export default function ProjectSamplesPage() {
                   style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
                 >
                   <td style={{ padding: '10px 12px' }}><span className="mono">{s.code}</span></td>
-                  <td style={{ padding: '10px 12px', color: 'var(--text-2)' }}>{s.strain_name ?? '—'}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--text-2)' }}>{s.matrix}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--text-2)' }}>
                     {s.organism_type ? ORGANISM_TYPE_LABELS[s.organism_type] : '—'}

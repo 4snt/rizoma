@@ -43,7 +43,6 @@ export default function FieldPage() {
   const [matrix, setMatrix] = useState<SampleMatrix>('solo')
   const [organismType, setOrganismType] = useState<OrganismType | ''>('')
   const [notes, setNotes] = useState('')
-  const [strainName, setStrainName] = useState('')
   const [isolationSource, setIsolationSource] = useState('')
   const [hostSpecies, setHostSpecies] = useState('')
   const [collectionSite, setCollectionSite] = useState('')
@@ -65,7 +64,6 @@ export default function FieldPage() {
       setCode('')
       setNotes('')
       setOrganismType('')
-      setStrainName('')
       setIsolationSource('')
       setHostSpecies('')
       setCollectionSite('')
@@ -129,7 +127,6 @@ export default function FieldPage() {
                 occurred_at: new Date().toISOString(),
                 notes: notes.trim() || undefined,
                 organism_type: organismType || undefined,
-                strain_name: strainName.trim() || undefined,
                 isolation_source: isolationSource.trim() || undefined,
                 host_species: hostSpecies.trim() || undefined,
                 collection_site: collectionSite.trim() || undefined,
@@ -195,13 +192,6 @@ export default function FieldPage() {
           </div>
 
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
-            <Field label="Nome da linhagem" hint="Opcional">
-              <Input
-                value={strainName}
-                onChange={(e) => setStrainName(e.target.value)}
-                placeholder="ex.: NEBIM-Bs01"
-              />
-            </Field>
             <Field label="Fonte de isolamento" hint="Opcional">
               <Input
                 list="field-isolation-sources"

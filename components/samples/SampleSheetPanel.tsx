@@ -129,7 +129,6 @@ export function SampleSheetPanel({ token, role, sample, onChanged }: {
         <>
           <Group title="Identificação">
             <ReadField label="Código" value={sample.code} mono />
-            <ReadField label="Nome da linhagem" value={sample.strain_name} mono />
             <ReadField label="Organismo" value={sample.organism_type ? ORGANISM_TYPE_LABELS[sample.organism_type] : null} />
             <ReadField label="Matriz" value={sample.matrix} mono />
             <ReadField label="Grupo" value={sample.treatment_group} />

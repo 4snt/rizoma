@@ -289,7 +289,6 @@ export interface SampleV2 {
   colonia_tamanho_mm?: number | null
   colonia_opacidade?: ColoniaOpacidade | null
   /* Identificação do isolado */
-  strain_name?: string | null
   isolation_source?: string | null
   host_species?: string | null
   host_cultivar?: string | null
@@ -388,7 +387,6 @@ export interface CreateSampleInput {
   occurred_at?: string
   notes?: string
   organism_type?: OrganismType
-  strain_name?: string | null
   isolation_source?: string | null
   host_species?: string | null
   host_cultivar?: string | null

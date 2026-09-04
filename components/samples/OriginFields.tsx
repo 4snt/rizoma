@@ -7,7 +7,6 @@ import { inputStyle, labelStyle, textareaStyle } from './styles'
 // Origem/coleta do isolado (controlado, sem fetch/salvar).
 
 export type OriginFormValue = {
-  strain_name: string
   isolation_source: string
   host_species: string
   host_cultivar: string
@@ -37,7 +36,6 @@ function localInputToIso(v: string): string | null {
 
 export function originToForm(s: Partial<LimsSample> | null | undefined): OriginFormValue {
   return {
-    strain_name: s?.strain_name ?? '',
     isolation_source: s?.isolation_source ?? '',
     host_species: s?.host_species ?? '',
     host_cultivar: s?.host_cultivar ?? '',
@@ -53,7 +51,7 @@ export function originToForm(s: Partial<LimsSample> | null | undefined): OriginF
 export function originToPatch(v: OriginFormValue, base?: Partial<LimsSample> | null): Partial<SampleUpdate> {
   const b = originToForm(base)
   const out: Partial<SampleUpdate> = {}
-  const textKeys = ['strain_name', 'isolation_source', 'host_species', 'host_cultivar', 'collection_site', 'notes'] as const
+  const textKeys = ['isolation_source', 'host_species', 'host_cultivar', 'collection_site', 'notes'] as const
   for (const k of textKeys) {
     const t = v[k].trim()
     if (t !== b[k]) out[k] = t || null
@@ -84,11 +82,6 @@ export function OriginFields({ value, onChange, disabled, showNotes }: {
         {ISOLATION_SOURCE_SUGGESTIONS.map(s => <option key={s} value={s} />)}
       </datalist>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
-        <div style={{ flex: '1 1 180px' }}>
-          <label style={labelStyle}>Nome da linhagem</label>
-          <input value={value.strain_name} placeholder="ex. UFVJM-R12" disabled={disabled}
-            onChange={e => set('strain_name')(e.target.value)} style={{ ...inputStyle, fontFamily: 'var(--mono)' }} />
-        </div>
         <div style={{ flex: '1 1 180px' }}>
           <label style={labelStyle}>Fonte de isolamento</label>
           <input list={SOURCE_LIST_ID} value={value.isolation_source} placeholder="rizosfera, endofítico…" disabled={disabled}

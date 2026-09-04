@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import useSWR from 'swr'
-import { useSession } from 'next-auth/react'
+import { useSession, signOut } from 'next-auth/react'
 import {
   api,
   type LimsSample,
@@ -43,7 +43,6 @@ const LAST_STEP = STEPS.length
 
 interface IdentForm {
   code: string
-  strain_name: string
   organism_type: OrganismType | ''
   matrix: LimsSampleMatrix
   treatment_group: string
@@ -53,7 +52,6 @@ interface IdentForm {
 function identToForm(s: LimsSample): IdentForm {
   return {
     code: s.code,
-    strain_name: s.strain_name ?? '',
     organism_type: s.organism_type ?? '',
     matrix: s.matrix,
     treatment_group: s.treatment_group ?? '',
@@ -62,17 +60,15 @@ function identToForm(s: LimsSample): IdentForm {
 }
 
 const EMPTY_IDENT: IdentForm = {
-  code: '', strain_name: '', organism_type: '', matrix: DEFAULT_MATRIX, treatment_group: '', replicate: '',
+  code: '', organism_type: '', matrix: DEFAULT_MATRIX, treatment_group: '', replicate: '',
 }
 
 /** Só os campos de identificação editáveis via PATCH (code/matrix são fixos após criação). */
 function identToPatch(f: IdentForm, base: LimsSample): SampleUpdate {
   const patch: SampleUpdate = {}
-  const strain = f.strain_name.trim() || null
   const group = f.treatment_group.trim() || null
   const rep = f.replicate ? Number(f.replicate) : null
   const org = f.organism_type || null
-  if (strain !== base.strain_name) patch.strain_name = strain
   if (group !== base.treatment_group) patch.treatment_group = group
   if (rep !== base.replicate) patch.replicate = rep
   if (org !== base.organism_type) patch.organism_type = org
@@ -176,7 +172,6 @@ export function SampleWizard({ projectId, initialSampleId, initialStep }: Sample
         treatment_group: ident.treatment_group.trim() || null,
         replicate: ident.replicate ? Number(ident.replicate) : null,
         organism_type: ident.organism_type || null,
-        strain_name: ident.strain_name.trim() || null,
       })
       setSampleId(created.id)
       setIdent(identToForm(created))
@@ -230,6 +225,15 @@ export function SampleWizard({ projectId, initialSampleId, initialStep }: Sample
       }
       setStep(step + 1)
     } catch (e) {
+      // 401 aqui apesar da renovação silenciosa (ver SessionProviderWrapper)
+      // significa que a sessão morreu de verdade (refresh_token do Google
+      // também expirou/revogado) — mostrar "Unauthorized" cru e deixar o
+      // usuário clicar de novo só resultaria no mesmo erro. Mesmo caminho do
+      // Sidebar/UserPanel: derruba a sessão e manda pro login.
+      if (e instanceof Error && e.message === 'Unauthorized') {
+        signOut({ callbackUrl: '/login?error=Unauthorized' })
+        return
+      }
       setError(errorMessage(e, 'Erro ao salvar a etapa.'))
     } finally {
       setSaving(false)
@@ -319,14 +323,6 @@ export function SampleWizard({ projectId, initialSampleId, initialStep }: Sample
                 )}
               </div>
               {sampleId && <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>Código fixo após o registro.</div>}
-            </div>
-            <div style={{ flex: '1 1 200px' }}>
-              <label style={labelStyle}>Nome da linhagem</label>
-              <input
-                type="text" value={ident.strain_name} placeholder="ex.: UFVJM-B12"
-                onChange={e => updateIdent({ strain_name: e.target.value })}
-                style={inputStyle}
-              />
             </div>
             <div style={{ flex: '1 1 160px' }}>
               <label style={labelStyle}>Tipo de organismo</label>
