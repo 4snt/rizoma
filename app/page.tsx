@@ -5,11 +5,6 @@ import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { api, type Project } from '@/lib/api'
 
-function markerBadge(marker: string) {
-  if (marker === 'ITS') return <span className="badge badge-purple">ITS</span>
-  return <span className="badge badge-blue">16S</span>
-}
-
 function statusDot(status: string) {
   if (status === 'active')     return <span className="dot dot-green" />
   if (status === 'running')    return <span className="dot dot-cyan pulse" />
@@ -122,7 +117,6 @@ export default function DashboardPage() {
             <div key={p.id} className="project-card">
               <div className="project-card-header">
                 <span className="project-code">{p.code}</span>
-                {markerBadge(p.marker_type)}
               </div>
               <div className="project-name">{p.name}</div>
               <div className="project-footer">

@@ -7,11 +7,6 @@ import { api, type Project } from '@/lib/api'
 import { can } from '@/lib/permissions'
 
 
-function markerBadge(marker: string) {
-  if (marker === 'ITS') return <span className="badge badge-purple">ITS</span>
-  return <span className="badge badge-blue">16S</span>
-}
-
 function statusBadge(status: string) {
   if (status === 'active')    return <span className="badge badge-green">● active</span>
   if (status === 'running')   return <span className="badge badge-cyan">◉ running</span>
@@ -20,14 +15,11 @@ function statusBadge(status: string) {
 }
 
 function ProjectCard({ p }: { p: Project }) {
-  const analysisLabels = p.analyses?.map(a => a.analysis_type.toUpperCase()).join(' · ') || 'Análise estatística'
-
   return (
     <Link href={`/projects/${p.id}`} style={{ textDecoration: 'none' }}>
       <div className="project-card" style={{ cursor: 'pointer' }}>
         <div className="project-card-header">
           <span className="project-code">{p.code}</span>
-          {markerBadge(p.marker_type)}
         </div>
         <div className="project-name">{p.name}</div>
         {p.description && (
@@ -44,9 +36,6 @@ function ProjectCard({ p }: { p: Project }) {
             {p.description}
           </div>
         )}
-        <div className="project-meta" style={{ marginTop: p.description ? 6 : undefined }}>
-          {analysisLabels}
-        </div>
         <div className="project-footer">
           {statusBadge(p.status)}
           {p.author ? (

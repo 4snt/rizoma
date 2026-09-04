@@ -9,11 +9,10 @@ import { useOrg } from '@/components/providers/OrgProvider'
 import { ErrorBanner, PageHeader } from '@/components/mvp/Primitives'
 import { SamplesTab } from '@/components/mvp/SamplesTab'
 import { FilesTab } from '@/components/mvp/FilesTab'
-import { JobsTab } from '@/components/mvp/JobsTab'
 import { ResultsTab } from '@/components/mvp/ResultsTab'
 import { ReportsTab } from '@/components/mvp/ReportsTab'
 
-const TABS = ['Amostras', 'Arquivos', 'Jobs', 'Resultados', 'Laudos'] as const
+const TABS = ['Amostras', 'Arquivos', 'Resultados', 'Laudos'] as const
 type Tab = (typeof TABS)[number]
 
 export default function ProjectV2DetailPage({ params }: { params: { id: string } }) {
@@ -76,7 +75,6 @@ export default function ProjectV2DetailPage({ params }: { params: { id: string }
 
       {tab === 'Amostras' && <SamplesTab projectId={projectId} />}
       {tab === 'Arquivos' && <FilesTab projectId={projectId} />}
-      {tab === 'Jobs' && <JobsTab projectId={projectId} />}
       {tab === 'Resultados' && <ResultsTab projectId={projectId} />}
       {tab === 'Laudos' && <ReportsTab projectId={projectId} />}
     </div>
